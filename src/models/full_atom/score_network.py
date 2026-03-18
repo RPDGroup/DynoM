@@ -1,8 +1,3 @@
-"""
-Copyright (2024) Bytedance Ltd. and/or its affiliates
-SPDX-License-Identifier: Apache-2.0
-"""
-
 from typing import Dict, Tuple, Any
 import torch
 from torch import nn

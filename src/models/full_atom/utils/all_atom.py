@@ -1,9 +1,3 @@
-"""Utilities for calculating all atom representations.
------------------------------------
-Copyright (2024) Bytedance Ltd. and/or its affiliates
-SPDX-License-Identifier: Apache-2.0
-"""
-
 import torch
 from src.openfold_local.np import residue_constants as rc
 from src.openfold_local.utils.tensor_utils import batched_gather

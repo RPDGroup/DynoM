@@ -4,7 +4,7 @@
 
 ```bash
 # clone project
-git clone https://github.com/xx/DynoM.git
+git clone https://github.com/RPDGroup/DynoM.git
 cd DynoM
 
 # create conda virtual environment

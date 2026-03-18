@@ -1,8 +1,3 @@
-"""
-Copyright (2024) Bytedance Ltd. and/or its affiliates
-SPDX-License-Identifier: Apache-2.0
-"""
-
 import re
 from pandas.core.groupby import DataFrameGroupBy
 from typing import Optional, Literal, Dict, Any
