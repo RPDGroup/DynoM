@@ -2,7 +2,7 @@
 
 ## **Installation**
 
-```
+```bash
 # clone project
 git clone https://github.com/xx/DynoM.git
 cd DynoM
@@ -29,7 +29,7 @@ DynoM 的训练主要由预训练和微调两个阶段组成。
 
 ### 2. Pretrain **on RCSB PDB dataset**
 
-```
+```bash
 python Pretrain.py \
     --data_train_csv_path <PATH_TO_YOUR_Train_Dataset.pkl> \
     --data_val_csv_path <PATH_TO_YOUR_EVAL_Dataset.pkl> \
@@ -49,8 +49,8 @@ python Pretrain.py \
 
 the detailed training configuration can be found
 
-```jsx
- python [Pretrain.py](http://Pretrain.py) -h
+```bash
+ python Pretrain.py -h
 ```
 
 **model ckeckpoint**
@@ -65,7 +65,7 @@ Access pretrained models with different RCSB PDB dataset:
 
 ### **3. Fine-tune on MD simulations dataset**
 
-```
+```bash
 python MD_finetune.py \
     --data_target_dataset ComplexMdDataset \
     --data_train_csv_path <PATH_TO_YOUR_TRAIN_DATASET.pkl> \
@@ -84,7 +84,7 @@ python MD_finetune.py \
 
 the detailed training configuration can be found
 
-```jsx
+```bash
  python MD_finetune.py -h
 ```
 
@@ -96,7 +96,7 @@ Access pretrained models with different MD **simulations** dataset:
 | --- | --- | --- |
 | model 1 | 1,000 MD trajectories  |  |
 | model 2 | 2,000 MD trajectories  |  |
-| **model 3** | 3,000 MD trajectories  |  |
+| model 3 | 3,000 MD trajectories  |  |
 | DynoM | 5,502 MD trajectories  |  |
 
 ## **Inference**
@@ -109,7 +109,7 @@ input data process
 
 To sample conformations using the DynoM model
 
-```
+```bash
 python Predict.py \
     --gen_dataset_test_gen_dataset <PATH_TO_YOUR_PREDICT_DATASET.pkl> \
     --alphafold3_cfg_seqres_to_index_path <PATH_TO_YOUR_PREDICT_SEQRES.pkl> \
@@ -122,7 +122,7 @@ python Predict.py \
 
 the detailed training configuration can be found
 
-```jsx
+```bash
  python Predict.py -h
 ```
 
