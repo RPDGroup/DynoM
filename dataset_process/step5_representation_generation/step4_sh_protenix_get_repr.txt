@@ -1,6 +1,0 @@
-
-1.conda deactivate  进入conda环境:protenix
-2.找到：/opt/data/private/lyb/protenix/inference_demo_1.sh 更改输入json文件为step3生成的json文件，
-以及表征输出文件夹路径，其余不动
-3.命令行cd到/opt/data/private/lyb/protenix
-3.在命令行运行sh脚本：bash /opt/data/private/lyb/protenix/inference_demo_1.sh
