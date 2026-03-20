@@ -1,0 +1,19 @@
+Step-by-step Instructions
+
+1.Deactivate the current conda environment and activate the protenix environment:
+    conda deactivate
+    conda activate protenix
+
+2.Navigate to the working directory:
+    cd ../data_processed/protenix
+
+3.Locate the script:
+    ../protenix/inference_demo_1.sh
+        Modify the following parameters:
+            Set the input JSON file to the JSON generated in Step 3
+            Specify the output directory for representations
+            Set the number of GPUs to use
+        Keep all other parameters unchanged
+
+4.Run the script:
+    bash ../protenix/inference_demo_1.sh
