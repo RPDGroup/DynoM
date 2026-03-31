@@ -1,2 +1,0 @@
-[console_scripts]
-protenix = runner.batch_inference:protenix_cli
