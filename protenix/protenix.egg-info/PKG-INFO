@@ -1,0 +1,34 @@
+Metadata-Version: 2.1
+Name: protenix
+Version: 0.3.2
+Summary: A trainable PyTorch reproduction of AlphaFold 3.
+Home-page: https://github.com/bytedance/Protenix
+Author: Bytedance Inc.
+Author-email: ai4s-bio@bytedance.com
+License: Apache 2.0 License
+Platform: manylinux1
+Requires-Python: >=3.10
+License-File: LICENSE
+Requires-Dist: PyYaml
+Requires-Dist: scipy
+Requires-Dist: ml_collections
+Requires-Dist: tqdm
+Requires-Dist: pandas
+Requires-Dist: dm-tree
+Requires-Dist: rdkit
+Requires-Dist: biopython==1.83
+Requires-Dist: modelcif==0.7
+Requires-Dist: biotite==1.0.1
+Requires-Dist: scikit-learn
+Requires-Dist: scikit-learn-extra
+Requires-Dist: deepspeed==0.14.4
+Requires-Dist: protobuf==3.20.2
+Requires-Dist: icecream
+Requires-Dist: ipdb
+Requires-Dist: wandb
+Requires-Dist: numpy==1.26.3
+Requires-Dist: matplotlib==3.9.2
+Requires-Dist: ipywidgets
+Requires-Dist: py3Dmol
+Requires-Dist: nvidia-cublas-cu12
+Requires-Dist: torch==2.3.1
