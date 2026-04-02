@@ -2,11 +2,15 @@
 This is the code for "**Introducing protein interaction efficiently improved the prediction of monomer dynamic conformation**", a conditional diffusion model named **DynoM** natively designed for multi-chain inputs.
 
 ## Table of content
-[TOC]
+- [DynoM](#dynom)
+  - [Table of Contents](#table-of-contents)
+  - [Installation and Test](#installation-and-test)
+  - [Usage](#usage)
+  - [Citation](#citation)
 
 ## **Installation**
 
-### enviroment
+### Enviroment
 
 ```bash
 # clone project
@@ -22,12 +26,10 @@ conda activate DynoM_env
 
 ## **Inference**
 
-input data process
+### Data Process
+[input data process](https://github.com/RPDGroup/DynoM/blob/main/data_processed/README_Inference.md)
 
-```bash
-
-```
-
+### Predict
 To sample conformations using the DynoM model
 
 ```bash
