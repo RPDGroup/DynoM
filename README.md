@@ -29,7 +29,7 @@ conda activate DynoM_env
 ### Data Process
 Please refer to [input data process](https://github.com/RPDGroup/DynoM/blob/main/data_processed/README_Inference.md)
 
-### Predict
+### sampling
 To sample conformations using the DynoM model
 
 ```bash
