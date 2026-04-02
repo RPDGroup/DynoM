@@ -4,8 +4,8 @@ This is the code for "**Introducing protein interaction efficiently improved the
 ## Table of content
 - [DynoM](#dynom)
   - [Table of Contents](#table-of-contents)
-  - [Installation and Test](#installation-and-test)
-  - [Usage](#usage)
+  - [Installation and Test](#installation)
+  - [Usage](#inference)
   - [Citation](#citation)
 
 ## **Installation**
@@ -27,7 +27,7 @@ conda activate DynoM_env
 ## **Inference**
 
 ### Data Process
-[input data process](https://github.com/RPDGroup/DynoM/blob/main/data_processed/README_Inference.md)
+Please refer to [input data process](https://github.com/RPDGroup/DynoM/blob/main/data_processed/README_Inference.md)
 
 ### Predict
 To sample conformations using the DynoM model
