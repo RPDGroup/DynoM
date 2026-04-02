@@ -8,7 +8,7 @@ git clone https://github.com/RPDGroup/DynoM.git
 cd DynoM
 
 # create conda virtual environment
-conda env create -f ./environment/environment.yml
+conda env create -f ./environment/env.yml
 
 # activate virtual environment
 conda activate DynoM
