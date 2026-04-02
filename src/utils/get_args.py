@@ -68,9 +68,9 @@ def get_args():
                             help="Whether to use alphafold3 representations.")
     data_group.add_argument("--data_alphafold3_seqres_to_index_path", type=str, default=None)
     data_group.add_argument("--data_complex_repr_data_root", type=str,
-                            help="Root directory for alphafold3 data.")
-    data_group.add_argument("--data_monomer_repr_data_root", type=str,
-                            help="Root directory for alphafold3 data.")
+                            help="Root directory for alphafold3 complex representation data.")
+    data_group.add_argument("--alphafold3_repr_data_root", type=str,
+                            help="Root directory for alphafold3 monomer representation data.")
     data_group.add_argument("--data_alphafold3_num_recycle", type=int, default=10,
                             help="Number of recycles for alphafold3.")
     data_group.add_argument("--data_alphafold3_node_size", type=int, default=384, help="Node size for alphafold3 features.")
