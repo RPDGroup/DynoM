@@ -51,12 +51,15 @@ the detailed training configuration can be found
 ```
 
 ## **Citation**
+If you are using our code or model, please cite the following paper:
 
 ```markdown
-@inproceedings{,
-  title={xx},
-  author={xx},
-  booktitle={xx},
-  year={xx}
+@article{DynoM,
+  title={"Introducing protein interaction efficiently improved the prediction of monomer dynamic conformation"},
+  author={Zilin Ren, Duo Liu, Qianyi Jia, Qiantong Jin, Yubin Liu, Chan Liu, Zhixiang Sui, Luyao Han, Yixiang Zhang, Xin Yang, Pingping Sun, Zhiguo Fu, Chengkun Wu, Ming Ni, Xiaochen Bo},
+  journal={xx},
+  year={2026},
+  publisher={xx},
+  doi={xx},
 }
 ```
