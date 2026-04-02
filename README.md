@@ -94,9 +94,6 @@ Access pretrained models with different MD **simulations** dataset:
 
 | **Model name** | **Dataset** | **Download** |
 | --- | --- | --- |
-| model 1 | 1,000 MD trajectories  |  |
-| model 2 | 2,000 MD trajectories  |  |
-| model 3 | 3,000 MD trajectories  |  |
 | DynoM | 5,502 MD trajectories  |  |
 
 ## **Inference**
