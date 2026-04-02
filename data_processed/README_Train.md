@@ -1,5 +1,5 @@
 # RCSB PDB Dataset Training Pipeline
-
+Please make sure to run it in the root directory of the project:DynoM/
 ## Step 1: Retrieve PDB IDs from RCSB Search
 
 This step allows users to fetch PDB IDs from the RCSB database according to a specified search query and automatically download the corresponding FASTA sequences.
@@ -7,9 +7,9 @@ This step allows users to fetch PDB IDs from the RCSB database according to a sp
 **Usage Example:**
 
 ```bash
-python3 -m data_processed.rcsb_script.step1_fasta_data_crawling \\
-    --url "https://www.rcsb.org/search?request=..." \\
-    --fasta_save_folder data_processed/save_folder/step1_fastadownload
+python3 -m data_processed.rcsb_script.step1_fasta_data_crawling \
+    --url "<YOUR_RCSB_SEARCH_URL>" \
+    --fasta_save_folder <PATH_TO_YOUR_FASTA_OUTPUT_DIRECTORY>
 ```
 <br/>
 
@@ -20,13 +20,11 @@ This step converts protein FASTA files into structured PKL format, supporting si
 **Usage Example:**
 
 ```bash
-python3 -m data_processed.rcsb_script.step2_fasta_file_processed \\
-    --input_fasta_dir data_processed/temp/step1_fasta_download \\
-    --one_pdb_output_pkl_dir data_processed/temp2/step2/one_pdb_output_pkl_dir \\
-    --final_pkl_path data_processed/temp2/step2/all_pdb_chains_fasta_data.pkl \\
-    --mode single \\
-    --temporary_deleted \\
-    --pdb_id_file ''
+python3 -m data_processed.rcsb_script.step2_fasta_file_processed \
+    --input_fasta_dir <PATH_TO_YOUR_INPUT_FASTA_DIRECTORY> \
+    --one_pdb_output_pkl_dir <PATH_TO_YOUR_ONE_PDB_OUTPUT_PKL_DIRECTORY> \
+    --final_pkl_file <PATH_TO_YOUR_FINAL_MERGED_PKL_FILE> \
+    --mode single 
 ```
 <br/>
 
@@ -37,11 +35,11 @@ This step downloads protein structure files in mmCIF (.cif.gz) format for all PD
 **Usage Example:**
 
 ```bash
-python3 -m data_processed.rcsb_script.step3_mmcif_data_crawling \\
-    --mmcif_dir data_processed/temp2/step3 \\
-    --pkl_file data_processed/temp2/step2/all_pdb_chains_fasta_data.pkl \\
-    --max_retries 5 \\
-    --retry_threshold 0.01 \\
+python3 -m data_processed.rcsb_script.step3_mmcif_data_crawling \
+    --mmcif_dir <PATH_TO_YOUR_MMCIF_DIRECTORY> \
+    --pkl_file <PATH_TO_YOUR_INPUT_PKL_FILE> \
+    --max_retries 5 \
+    --retry_threshold 0.01 \
     --cpu_usage 0.75
 ```
 <br/>
@@ -53,10 +51,10 @@ This step processes downloaded mmCIF files into structured PDBs and metadata, su
 **Usage Example:**
 
 ```bash
-python3 -m data_processed.rcsb_script.step4_pdb_parsing.structure_mmcif_processed_main \\
-    --input_cif_gz_dir data_processed/save_folder/step3 \\
-    --output_pdb_dir data_processed/save_folder/step4/pdb \\
-    --metadata_json_dir data_processed/save_folder/step4/metadata_jsonfile_output \\
+python3 -m data_processed.rcsb_script.step4_pdb_parsing.structure_mmcif_processed_main \
+    --input_cif_gz_dir <PATH_TO_YOUR_INPUT_CIF_GZ_DIRECTORY> \
+    --output_pdb_dir <PATH_TO_YOUR_OUTPUT_PDB_DIRECTORY> \
+    --metadata_json_dir <PATH_TO_YOUR_METADATA_JSON_OUTPUT_DIRECTORY> \
     --mode single
 ```
 
@@ -70,12 +68,13 @@ This optional step aligns sequences extracted from PDB structures with sequences
 **Usage Example:**
 
 ```bash
-python3 -m data_processed.rcsb_script.step4-1_pdb_seq_align_with_fasta \\
-    --pdb_dir data_processed/save_folder/step4/pdb \\
-    --fasta_dir data_processed/save_folder/step1_fastadownload \\
-    --json_dir data_processed/save_folder/step4-1_align_pdb_to_fasta/align_json_output_dir \\
-    --pkl_dir data_processed/save_folder/step4-1_align_pdb_to_fasta/one_pkl_output \\
-    --num_processes 32 \\
+python3 -m data_processed.rcsb_script.step4-1_pdb_seq_align_with_fasta \
+    --pdb_dir <PATH_TO_YOUR_PROCESSED_PDB_DIRECTORY> \
+    --fasta_dir <PATH_TO_YOUR_FASTA_DIRECTORY> \
+    --json_dir <PATH_TO_YOUR_ALIGNMENT_JSON_OUTPUT_DIRECTORY> \
+    --pkl_dir <PATH_TO_YOUR_ONE_PKL_OUTPUT_DIRECTORY> \
+    --final_pkl_name <FINAL_MERGED_PKL_FILENAME> \
+    --num_processes <NUMBER_OF_PROCESSES>
 ```
 <br/>
 
@@ -83,87 +82,85 @@ python3 -m data_processed.rcsb_script.step4-1_pdb_seq_align_with_fasta \\
 In this step, we generate protein sequence representations using the Protenix framework.
 
 ### Overview
-To compute protein representations, a dedicated environment with all required **Protenix dependencies** must be set up, and a **customized version of Protenix** is provided within this project. However, due to size constraints, **data files and model weights are not distributed** in the repository.  
-Please download:
-- **model_v0.2.0.pt** from Protenix release  
-- **CCD cache file:** components.v20240608.cif  
+To compute protein representations, a dedicated environment with all required **Protenix dependencies** must be set up. This project provides **a customized version of Protenix** tailored for our workflow. 
 
-### Step 5-1: Environment Setup
+**model_v0.2.0.pt**: The model weights are **included** in this repository.
+```text
+/protenix
+ └── release_data
+     └── checkpoint/
+         └── model_v0.2.0.pt
+```
+**CCD cache file**: The required CCD cache version is `components.v20240608.cif`.  
+> Note: This file will be automatically downloaded during the first execution of the script.  
+> Please be patient, as the download may take some time depending on your network speed.
+
+Protenix v0.3.1 here ： [Protenix v0.3.1 Release](https://github.com/bytedance/Protenix/releases/tag/v0.3.1)
+### Step 5-1: MSA Generation
+
+This step generates **Multiple Sequence Alignment (MSA)** data using the PKL files produced in Step 4-1 as input.
+
+**Usage Example:**
 
 ```bash
+python3 -m data_processed.rcsb_script.step5_representation_generation.step2_get_msa_from_protenixAPI \
+    --input_file <PATH_TO_YOUR_FINAL_MERGED_PKL_FILE_FROM_STEP4-1> \
+    --msa_out_dir <PATH_TO_YOUR_MSA_OUTPUT_DIRECTORY> \
+    --log_file <PATH_TO_YOUR_MSA_LOG_FILE> \
+    --max_workers <NUMBER_OF_PARALLEL_WORKERS>
+```
+<br/>
+
+### Step 5-2: JSON Construction for Representation Input
+
+This step constructs structured JSON files by pairing precomputed MSA results with corresponding protein sequences .
+
+**Usage Example:**
+
+```bash
+python3 -m data_processed.rcsb_script.step5_representation_generation.step3_af3_input_json \
+    --input_pkl_file <PATH_TO_YOUR_FINAL_MERGED_PKL_FILE_FROM_STEP1> \
+    --msa_results_dir <PATH_TO_YOUR_PRECOMPUTED_MSA_DIRECTORY> \
+    --one_json_output_dir <PATH_TO_YOUR_ONE_JSON_OUTPUT_DIRECTORY> \
+    --merge_json_output_dir <PATH_TO_YOUR_MERGE_JSON_OUTPUT_DIRECTORY> \
+    --merge_json_output_name <MERGED_JSON_FILE_NAME_No_SUFFIX> \
+    --pairing_db 'uniref100'
+```
+<br/>
+
+### Step 5-3: Environment Setup
+
+```bash
+#  Create and activate environment
 conda create -n protenix_env python=3.10 -y
-conda activate protenix_env
-pip install protenix
-cd ../protenix
+cd ./data_processed/protenix
+pip3 install -e .
 ```
 **Note**: This project includes a modified version of Protenix. Make sure to use this directory for execution.
 <br/>
 
-### Step 5-2: MSA Generation
-
-This step generates Multiple Sequence Alignment (MSA) data using the Protenix API from sequences obtained in Step 2, Step 4-1, or a composite FASTA file, for downstream representation learning.
-
-**Usage Example:**
-
-```bash
-python3 -m data_processed.rcsb_script.step5_representation_generation.step2_get_msa_from_protenixAPI \\
-    --input_path data_processed/save_folder/step4-1_align_pdb_to_fasta/step4-1_final_merged.pkl \\
-    --out_dir data_processed/save_folder/step5_msa_output \\
-    --log_file data_processed/save_folder/step5_msa_output/msa_log.log \\
-    --max_workers 20
-```
-<br/>
-
-**Note:** Protenix does not include a **Jupyter kernel**; please **execute all operations in the terminal**.  
-
-When dealing with **large-scale data**, the speed of MSA may be relatively slow, so please exercise patience. If the **MSA server frequently encounters request failures**, you may consider **localizing MSA** and running it using **ColabFold in conjunction with MMseqs2**.  
-
-For detailed instructions, please refer to the Protenix documentation:  
-[ColabFold-compatible MSA](https://github.com/bytedance/Protenix/blob/main/docs/colabfoldcompatiblemsa.md)  
-
-Furthermore, after MSA generates the **A3M file**, please proceed with **MSA Post-Processing** as outlined in Step 3 of the documentation:  
-[MSA Template Pipeline](https://github.com/bytedance/Protenix/blob/main/docs/msatemplatepipeline.md)
-<br/>
-
-### Step 5-3: JSON Construction for Representation Input
-
-This step constructs structured JSON files by pairing precomputed MSA results with corresponding protein sequences for downstream representation learning.
-
-**Usage Example:**
-
-```bash
-python3 -m data_processed.rcsb_script.step5_representation_generation.step3_af3_input_json \\
-    --input_filepath data_processed/save_folder/step4-1_align_pdb_to_fasta/step4-1_final_merged_top3.pkl \\
-    --one_json_output_dir data_processed/save_folder/step5_msa_output/one_json \\
-    --precomputed_msa_dirs data_processed/save_folder/step5_msa_get/msa_dir \\
-    --merge_json_output_dir data_processed/save_folder/step5_msa_output/merge_json \\
-    --merge_json_output_name test.json \\
-    --pairing_db uniref100
-```
-<br/>
+**Note:** Protenix does not include a **Jupyter kernel**; please **execute all operations in the terminal**.  When dealing with **large-scale data**, the speed of MSA may be relatively slow, so please exercise patience. 
 
 ### Step 5-4: Representation Generation
 
 This step generates **protein representations** using a **customized Protenix inference pipeline**.
 
-
-This implementation is based on **Protenix v0.3.1**, utilizing the pretrained weights **model-v0.2.0.pt** and the **CCD cache file components.v20240608.cif**.  
-The corresponding Protenix release can be accessed here: [Protenix v0.3.1 Release](https://github.com/bytedance/Protenix/releases/tag/v0.3.1)
-
 **Procedure:**  
 1. **Deactivate** the current conda environment and **activate** the `protenix` environment.  
-2. Navigate to the **Protenix working directory**:  
-   ```bash
-   cd ../data_processed/protenix
+2. Navigate to the **Protenix working directory** in **protenix** dir:  
 3. **Edit the inference script:**  
 The script **protenix/inference_demo_1.sh** needs to be updated as follows:  
-    - Set the **input JSON file path** (from Step 5-3)  
+    - Set the **input JSON file path** (from Step 5-2)  
     - Set the **output directory** for representations  
     - Configure the **number of GPUs** (`nproc_per_node=X`)  
     - Keep other parameters unchanged  
 4. **Run the inference script:**  
     ```bash
     bash inference_demo_1.sh
+    ```
+5. **Return to DynoM root directory**
+    ```bash
+    cd ../../
     ```
 <br/>
 
@@ -173,9 +170,9 @@ This step retrieves **precomputed protein representations** based on sequences, 
 
 **Usage Example:**  
 ```bash
-python3 -m data_processed.rcsb_script.step6_af3rep_corresponding_seqs \\
-    --input_pkl data_processed/temp/step4-1_align_pdb_to_fasta/step4-1_final_merged_top3.pkl \\
-    --output_pkl data_processed/temp/step6/alphafold3_seqres_to_index_output.pkl
+python3 -m data_processed.rcsb_script.step6_af3rep_corresponding_seqs \
+    --input_pkl <PATH_TO_YOUR_FINAL_MERGED_PKL_FILE_FROM_STEP4-1> \
+    --output_pkl <PATH_TO_YOUR_SEQUENCE_MAPPING_OUTPUT_PKL>
 ```
 <br/>
 

@@ -184,16 +184,16 @@ def merge_json_files(folder_path, output_file):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate MSA JSON inputs and merge them.")
-    parser.add_argument("--input_filepath", type=str, required=True,
+    parser.add_argument("--input_pkl_file", type=str, required=True,
                         help="Input file path (.pkl or .fasta)")
     parser.add_argument("--one_json_output_dir", type=str, required=True,
                         help="Directory to store intermediate JSON files")
-    parser.add_argument("--precomputed_msa_dirs", type=str, required=True,
+    parser.add_argument("--msa_results_dir", type=str, required=True,
                         help="Directory of precomputed MSA files")
     parser.add_argument("--merge_json_output_dir", type=str, required=True,
                         help="Directory to store merged JSON file")
-    parser.add_argument("--merge_json_output_name", type=str, default="merged.json",
-                        help="Final merged JSON file name")
+    parser.add_argument("--merge_json_output_name", type=str, default="merged",
+                        help="Final merged JSON file name,No need for suffix")
     parser.add_argument("--pairing_db", type=str, default="uniref100",
                         help="Pairing database (default: uniref100)")
     parser.add_argument("--need_process_PDBID_path", type=str, default=None,
@@ -231,7 +231,7 @@ def main():
 
     merge_json_path = os.path.join(
         args.merge_json_output_dir,
-        args.merge_json_output_name
+        args.merge_json_output_name + ".json"
     )
 
     merge_json_files(

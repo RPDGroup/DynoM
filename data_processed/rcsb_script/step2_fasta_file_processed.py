@@ -416,7 +416,7 @@ if __name__ == "__main__":
         help="Directory to store intermediate PKL files (one per PDB entry)."
     )
     parser.add_argument(
-        "--final_pkl_path",
+        "--final_pkl_file",
         type=str,
         required=True,
         help="Path to save the final merged PKL file."

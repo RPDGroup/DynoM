@@ -180,13 +180,13 @@ if __name__ == "__main__":
         description="Generate MSA files using Protenix API from FASTA or PKL inputs."
     )
     parser.add_argument(
-        "--input_path",
+        "--input_file",
         type=str,
         required=True,
         help="Input file (.fasta or .pkl) containing protein sequences"
     )
     parser.add_argument(
-        "--out_dir",
+        "--msa_out_dir",
         type=str,
         required=True,
         help="Directory to save MSA results"
