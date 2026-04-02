@@ -4,8 +4,8 @@ This is the code for "**Introducing protein interaction efficiently improved the
 ## Table of content
 - [DynoM](#dynom)
   - [Table of Contents](#table-of-contents)
-  - [Installation and Test](#installation)
-  - [Usage](#inference)
+  - [Installation](#installation)
+  - [inference](#inference)
   - [Citation](#citation)
 
 ## **Installation**
