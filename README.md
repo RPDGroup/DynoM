@@ -90,7 +90,7 @@ the detailed training configuration can be found
 
 **model ckeckpoint**
 
-Access pretrained models with different MD **simulations** dataset:
+Access pretrained DynoM model:
 
 | **Model name** | **Dataset** | **Download** |
 | --- | --- | --- |
