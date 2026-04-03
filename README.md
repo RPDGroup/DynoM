@@ -32,7 +32,7 @@ conda activate DynoM_env
 Please refer to [input data process](https://github.com/RPDGroup/DynoM/blob/main/data_processed/README_Inference.md)
 
 ### Sampling
-To sample conformations using the DynoM model
+To sample conformations using the DynoM model:
 
 ```bash
 python Predict.py \
@@ -45,10 +45,22 @@ python Predict.py \
     --output_dir <PATH_TO_YOUR_OUTPUT_DIRECTORY> 
 ```
 
-the detailed training configuration can be found
+the detailed training configuration can be found:
 
 ```bash
  python Predict.py -h
+```
+example:
+
+```bash
+python Predict.py \
+    --gen_dataset_test_gen_dataset ./example/input_8QB6.pkl \
+    --alphafold3_cfg_seqres_to_index_path ./example/seqres_to_index.pkl \
+    --alphafold3_cfg_repr_data_root ./example/AF3_repr \
+    --gen_batch_size 10 \
+    --gen_num_samples 1000 \
+    --model_ckpt_path  ./checkpoint/DynoM.ckpt \
+    --output_dir ./output
 ```
 
 ## **Citation**
