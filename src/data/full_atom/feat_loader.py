@@ -10,7 +10,8 @@ PATH_TYPE = Union[str, PosixPath]
 class Alphafold3ReprLoader(object):
     def __init__(
         self,
-        repr_data_root: str,
+        monomer_data_root: str,
+        complex_data_root: str,
         seqres_to_index_path: str,
         num_recycles: int = 3,
         node_size: int = 384,
@@ -22,12 +23,13 @@ class Alphafold3ReprLoader(object):
 
         self.seqres_to_index = pd.read_pickle(seqres_to_index_path)
         self.seqres_to_index = self.seqres_to_index.set_index("seqs_key")
-        self.repr_data_root  = repr_data_root
+        self.monomer_data_root  = monomer_data_root
+        self.complex_data_root  = complex_data_root
 
-    def load_repr(self,repr_data_root, repr_type: str, pdb_id: str) -> torch.Tensor:
-        repr_path = f"{repr_data_root}/{pdb_id}_{repr_type}_repr_recycle{self.num_recycles}.pt"
+    def load_repr(self, repr_type: str, pdb_id: str) -> torch.Tensor:
+        repr_path = f"{self.complex_data_root}/{pdb_id}_{repr_type}_repr_recycle{self.num_recycles}.npy"
         if not Path(repr_path).exists():
-            repr_path = f"{repr_data_root}/{pdb_id}_{repr_type}_repr_recycle{self.num_recycles}.npy"
+            repr_path = f"{self.monomer_data_root}/{pdb_id}_{repr_type}_repr_recycle{self.num_recycles}.npy"
 
         assert Path(repr_path).exists(), f"{repr_path} repr_file not found!"
         
