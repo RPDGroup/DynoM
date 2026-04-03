@@ -3,6 +3,8 @@ This is the code for "**Introducing protein interaction efficiently improved the
 
 ![image](https://github.com/RPDGroup/DynoM/blob/main/model.jpg)
 
+![image](https://github.com/RPDGroup/DynoM/blob/main/8qb6_dynom.gif)
+
 ## Table of content
 - [DynoM](#dynom)
   - [Table of Contents](#table-of-contents)
