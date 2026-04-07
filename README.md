@@ -50,6 +50,19 @@ the detailed training configuration can be found:
 ```bash
  python Predict.py -h
 ```
+
+The ```bash Predict.py ``` requires options including:
+
+```bash
+    --gen_dataset_test_gen_dataset: required, the file path to the test dataset used for prediction, a valid .pkl file path is required.
+    --alphafold3_cfg_seqres_to_index_path: required, the file path to the AlphaFold3 sequence to index mapping, a valid .pkl file path is required.
+    --alphafold3_cfg_repr_data_root: required, the root directory path containing the AlphaFold3 preprocessed feature representations.
+    --gen_batch_size: optional, the batch size to be used during inference, default is 10.
+    --gen_num_samples: required, the total number of samples you want to generate.
+    --model_ckpt_path: required, the file path to the downloaded pre-trained model checkpoint.
+    --output_dir: required, the directory where the inference results will be saved. If the directory does not exist, the script will typically create it automatically.
+```
+
 example:
 
 ```bash
