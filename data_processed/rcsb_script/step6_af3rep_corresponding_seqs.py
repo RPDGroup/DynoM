@@ -22,7 +22,7 @@ def convert_seqs_to_key(input_pkl: str, output_pkl: str):
     for col in required_cols:
         if col not in df.columns:
             raise ValueError(f"Missing required column: {col}")
-    df['seqs_key'] = df['seqs'].apply(lambda x: tuple(x) if x else tuple())
+    df['seqs_key'] = df['seqs'].apply(lambda x: "_".join(x))
     df_new = df[['PDB_ID', 'seqs_key']]
     os.makedirs(os.path.dirname(output_pkl), exist_ok=True)
     df_new.to_pickle(output_pkl)

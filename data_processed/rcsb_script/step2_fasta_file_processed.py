@@ -378,7 +378,7 @@ def process_pdb_files_in_parallel(input_fasta_dir, one_pdb_output_pkl_dir, final
 def main(args):
     input_fasta_dir = args.input_fasta_dir
     one_pdb_output_pkl_dir = args.one_pdb_output_pkl_dir
-    final_pkl_path = args.final_pkl_path
+    final_pkl_file = args.final_pkl_file
     mode = args.mode
     temporary_deleted = args.temporary_deleted
     pdb_id_file = args.pdb_id_file
@@ -392,7 +392,7 @@ def main(args):
     process_pdb_files_in_parallel(
         input_fasta_dir,
         one_pdb_output_pkl_dir,
-        final_pkl_path,
+        final_pkl_file,
         mode,
         temporary_deleted,
         need_processed_list

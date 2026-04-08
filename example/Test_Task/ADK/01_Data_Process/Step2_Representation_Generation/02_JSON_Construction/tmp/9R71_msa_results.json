@@ -1,0 +1,15 @@
+{
+    "sequences": [
+        {
+            "proteinChain": {
+                "sequence": "MRIILLGAPGAGKGTQAQFIMEKYGIPQISTGDMLRAAVKSGSELGKQAKDIMDAGKLVTDELVIALVKERIAQEDCRNGFLLDGFPRTIPQADAMKEAGINVDYVLEFDVPDALIVDRIVGRRVHAPSGRVYHVKFNPPKVEGKDDVTGEELTTRKDDQEETVRKRLVEYHQMTAPLIGYYSKEAEAGNTKYAKVDGTKPVAEVRADLEKILG",
+                "count": 2,
+                "msa": {
+                    "precomputed_msa_dir": "/opt/data/private/test_github_dynom/Jqt_Test/DynoM/example/Test_Task/ADK/01_Data_Process/Step2_Representation_Generation/01_MAS_Generation/Output/9R71/0",
+                    "pairing_db": "uniref100"
+                }
+            }
+        }
+    ],
+    "name": "9R71"
+}

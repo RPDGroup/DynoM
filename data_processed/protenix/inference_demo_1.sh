@@ -10,9 +10,9 @@ seed=101
 use_deepspeed_evo_attention=true
 
 
-input_json_path="/opt/data/private/lyb/data_processed/temp/step5_msa_output/merge_json/test_3.json"
+input_json_path="/opt/data/private/test_github_dynom/Jqt_Test/DynoM/example/Test_Task/ADK/01_Data_Process/Step2_Representation_Generation/02_JSON_Construction/Output/9R71.json"
 #表征输出路径
-dump_dir="/opt/data/private/lyb/data_processed/temp/step5_msa_output/rep_output"
+dump_dir="/opt/data/private/test_github_dynom/Jqt_Test/DynoM/example/Test_Task/ADK/01_Data_Process/Step2_Representation_Generation/04_Representaion_Generation"
 
 
 only_encoder=True

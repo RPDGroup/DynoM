@@ -169,8 +169,8 @@ def process_input_file(input_path, out_dir, log_file, max_workers=10):
 
 def main(args):
     process_input_file(
-        input_path=args.input_path,
-        out_dir=args.out_dir,
+        input_path=args.input_file,
+        out_dir=args.msa_out_dir,
         log_file=args.log_file,
         max_workers=args.max_workers
     )

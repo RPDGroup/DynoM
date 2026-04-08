@@ -184,7 +184,7 @@ def merge_json_files(folder_path, output_file):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate MSA JSON inputs and merge them.")
-    parser.add_argument("--input_pkl_file", type=str, required=True,
+    parser.add_argument("--input_file", type=str, required=True,
                         help="Input file path (.pkl or .fasta)")
     parser.add_argument("--one_json_output_dir", type=str, required=True,
                         help="Directory to store intermediate JSON files")
@@ -210,17 +210,17 @@ def main():
             need_process_PDBID = [
                 line.strip().upper() for line in f if line.strip()
             ]
-    if args.input_filepath.endswith(".pkl"):
+    if args.input_file.endswith(".pkl"):
         error_pdbid = generate_pkl_msa_input(
-            args.input_filepath,
+            args.input_file,
             args.one_json_output_dir,
-            args.precomputed_msa_dirs,
+            args.msa_results_dir,
             args.pairing_db
         )
-    elif args.input_filepath.endswith(".fasta"):
+    elif args.input_file.endswith(".fasta"):
         error_pdbid = generate_fasta_msa_input_complex(
-            args.input_filepath,
-            args.precomputed_msa_dirs,
+            args.input_file,
+            args.msa_results_dir,
             args.one_json_output_dir,
             args.pairing_db,
             need_process_PDBID=need_process_PDBID
