@@ -1,5 +1,5 @@
 # DynoM
-This is the code for "**Introducing protein interaction efficiently improved the prediction of monomer dynamic conformation**", a conditional diffusion model named **DynoM** natively designed for multi-chain inputs.
+This is the code for "**Efficient exploration of conformational ensembles via protein interaction-informed deep learning**", a conditional diffusion model named **DynoM** natively designed for multi-chain inputs.
 
 ![image](https://github.com/RPDGroup/DynoM/blob/main/model.jpg)
 
