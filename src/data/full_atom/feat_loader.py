@@ -1,3 +1,5 @@
+"""Load cached AlphaFold3 single-residue and residue-pair conditioning arrays."""
+
 import torch
 import numpy as np
 import pandas as pd
@@ -8,6 +10,14 @@ PATH_TYPE = Union[str, PosixPath]
 
 
 class Alphafold3ReprLoader(object):
+    """Resolve ordered sequence keys to representation filenames.
+
+    The mapping pickle must provide seqs_key and PDB_ID columns. Callers join
+    chain sequences with underscores; the feature arrays must use that same
+    concatenated residue order. Complex-root files take precedence over the
+    monomer-root fallback. No AlphaFold3 computation is performed here.
+    """
+
     def __init__(
         self,
         monomer_data_root: str,
@@ -27,6 +37,8 @@ class Alphafold3ReprLoader(object):
         self.complex_data_root  = complex_data_root
 
     def load_repr(self, repr_type: str, pdb_id: str) -> torch.Tensor:
+        """Load <PDB_ID>_<single|pair>_repr_recycle<N>.npy as a float tensor."""
+
         repr_path = f"{self.complex_data_root}/{pdb_id}_{repr_type}_repr_recycle{self.num_recycles}.npy"
         if not Path(repr_path).exists():
             repr_path = f"{self.monomer_data_root}/{pdb_id}_{repr_type}_repr_recycle{self.num_recycles}.npy"
@@ -47,8 +59,8 @@ class Alphafold3ReprLoader(object):
         """Load node and/or edge representations from pretrained model
         Returns:
             {
-                node_repr: Tensor[seqlen, repr_dim], float
-                edge_repr: Tensor[seqlen, seqlen, repr_dim], float
+                pretrained_node_repr: Tensor[L, node_size], float32
+                pretrained_edge_repr: Tensor[L, L, edge_size], float32
             }
         """
 

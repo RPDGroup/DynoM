@@ -1,3 +1,9 @@
+"""Generate conformational ensembles from sequence metadata and cached AF3 features.
+
+The Lightning test loop loads the checkpoint and writes sampled structures
+under <output_dir>/test_gen/<PDB_ID>/. Run this script with -h for CLI options.
+"""
+
 import argparse
 import torch
 import lightning as L
@@ -14,18 +20,18 @@ import warnings
 warnings.filterwarnings("ignore", message="The given NumPy array is not writable.*")
 
 
-# 设置随机种子
+# Seed the random number generators before constructing data and model objects.
 L.seed_everything(42)
 
 
 def print_dict_tree(obj, indent: str = "", is_last: bool = True) -> None:
-    """按照树形结构打印配置文件"""
+    """Print nested configuration dictionaries and lists as an indented tree."""
     branch = "└── " if is_last else "├── "
     if isinstance(obj, dict):
         for i, (k, v) in enumerate(obj.items()):
             last = i == len(obj) - 1
             print(f"{indent}{branch}{k}:", end="")
-            # 在冒号后同一行直接打印基础值；若为容器则换行递归
+            # Print scalar values inline and recurse into nested containers.
             if isinstance(v, (dict, list)):
                 print()
                 print_dict_tree(v, indent + ("    " if is_last else "│   "), last)
@@ -41,6 +47,12 @@ def print_dict_tree(obj, indent: str = "", is_last: bool = True) -> None:
 
 
 def eval(data_cfg, model_cfg, train_cfg):
+    """Restore a checkpoint and generate structures via FullAtomLitModule.test_step.
+
+    The name follows the original entry point; this function runs sampling,
+    not the supervised validation-loss loop.
+    """
+
 
     assert model_cfg["ckpt_path"] is not None, "ckpt_path must be specified"
 
@@ -53,12 +65,12 @@ def eval(data_cfg, model_cfg, train_cfg):
     torch.set_float32_matmul_precision(precision="high")
 
     checkpoint_callback = ModelCheckpoint(
-        monitor="loss/val_loss",  # 要监控的指标
-        dirpath="./Pretrain",  # 保存 checkpoint 的目录
-        # checkpoint 文件名格式
+        monitor="loss/val_loss",  # Validation metric used by the checkpoint callback.
+        dirpath="./Pretrain",  # Directory for training checkpoints.
+        # Include the epoch and validation loss in checkpoint filenames.
         filename="best-checkpoint-{epoch:02d}-{loss/val_loss:.4f}",
-        save_top_k=-1,  # 只保存最好的 checkpoint
-        mode="min",  # 根据监控指标的最低值保存
+        save_top_k=-1,  # Keep all checkpoints saved by this callback (-1 disables top-k pruning).
+        mode="min",  # Lower validation loss is better.
     )
 
     if train_cfg["strategy"] == "fsdp":
@@ -91,6 +103,7 @@ def eval(data_cfg, model_cfg, train_cfg):
         callbacks=[checkpoint_callback],
     )
 
+    # test_step calls reverse diffusion and saves PDB files; no optimizer step is run.
     trainer.test(
         model=model,
         datamodule=data_module,
@@ -100,6 +113,8 @@ def eval(data_cfg, model_cfg, train_cfg):
 
 
 def get_argrs():
+    """Parse paths and sampling controls used to build the inference configuration."""
+
     parser = argparse.ArgumentParser(
         description="Configuration arguments for the model"
     )
@@ -153,6 +168,8 @@ if __name__ == "__main__":
     args = get_argrs()
 
     ## config
+    # Despite the legacy argument name, test_gen_dataset is a pandas pickle (.pkl).
+    # The generation dataset repeats each input row gen_num_samples times.
     data_cfg = {
         "mode": "val",
         "gen_dataset": {
@@ -190,6 +207,8 @@ if __name__ == "__main__":
         },
     }
 
+    # Architecture dimensions must match the checkpoint. AF3 single/pair features
+    # provide 384/128 channels respectively in this release configuration.
     model_cfg = {
         "model_name": "full_atom",
         "ckpt_path": args.model_ckpt_path,
@@ -277,6 +296,8 @@ if __name__ == "__main__":
                 },
             },
         },
+        # The sampling loop reads diffusion_steps, temperature, and is_show_diffusing.
+        # The CLI gen_num_samples controls ensemble size through GenDataset.
         "reverse_sample_cfg": {
             "num_samples": 10,
             "scale_coords": 0.1,

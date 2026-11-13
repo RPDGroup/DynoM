@@ -79,6 +79,13 @@ def quat_to_rotvec(quat, eps=1e-6):
 
 
 class SE3Diffuser:
+    """Combine independent SO(3) rotation and R3 translation diffusion.
+
+    Public rigid translations are in Angstroms; R3Diffuser handles internal
+    coordinate scaling. Packed frames use scalar-first quaternions followed
+    by translations. A diffuse_mask value of 1 selects a residue for updates.
+    """
+
 
     def __init__(self, se3_cfg):
         self._log = logging.getLogger(__name__)
@@ -160,6 +167,12 @@ class SE3Diffuser:
         )
 
     def calc_rot_score(self, rots_t, rots_0, t):
+        """Evaluate the rotational score of the relative rotation R_0 inverse times R_t.
+
+        This PyTorch path keeps the score connected to predicted clean rotations
+        for gradient-based training; NumPy sampling paths are used separately.
+        """
+
         rots_0_inv = rots_0.invert()
         quats_0_inv = rots_0_inv.get_quats()
         quats_t = rots_t.get_quats()
@@ -210,19 +223,19 @@ class SE3Diffuser:
         center: bool = True,
         noise_scale: float = 1.0,
     ):
-        """Reverse sampling function from (t) to (t-1).
+        """Reverse sampling function from t to t-dt.
 
         Args:
-            rigid_t: [..., N] protein rigid objects at time t.
+            rigids_t: [..., N] protein rigid objects at time t.
             rot_score: [..., N, 3] rotation score.
             trans_score: [..., N, 3] translation score.
             t: continuous time in [0, 1].
             dt: continuous step size in [0, 1].
-            mask: [..., N] which residues to update.
+            diffuse_mask: [..., N] which residues to update.
             center: true to set center of mass to zero after step
 
         Returns:
-            rigid_t_1: [..., N] protein rigid objects at time t-1.
+            rigid_t_1: [..., N] protein rigid objects at time t-dt.
         """
         trans_t, rot_t = _extract_trans_rots(rigids_t)
         if not self._diffuse_rot:
@@ -288,6 +301,8 @@ class SE3Diffuser:
         if (not self._diffuse_trans) and impute is None:
             raise ValueError("Must provide imputation values.")
 
+        # temperature scales the initial rotation vectors and Gaussian translations.
+        # It is not forwarded as the per-step noise_scale in reverse_sample.
         if self._diffuse_rot:
             rot_ref = self._so3_diffuser.sample_ref(
                 n_samples=n_samples, seq_len=seq_len

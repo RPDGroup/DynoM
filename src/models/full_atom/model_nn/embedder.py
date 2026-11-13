@@ -1,3 +1,5 @@
+"""Construct residue and pair embeddings from diffusion state and AF3 features."""
+
 import math
 import torch
 from torch import nn
@@ -11,6 +13,8 @@ def sinusoidal_embedding(
         emb_size: int,
         max_pos: int = 10000,
 ) -> torch.Tensor:
+    """Append an even-sized sin/cos feature axis to scalar positions or times."""
+
     assert -max_pos <= pos.min().item() <= max_pos
     assert emb_size % 2 == 0, "Please use an even embedding size."
     half_emb_size = emb_size // 2
@@ -23,6 +27,8 @@ def sinusoidal_embedding(
 
 
 class GaussianSmearing(nn.Module):
+    """Expand distances into Gaussian radial basis functions with fixed centers."""
+
     def __init__(
             self,
             num_rbf: int,
@@ -132,6 +138,13 @@ class Embedder(nn.Module):
             dp_repr = None,
             **kwargs,
     ):
+        """Return node features (B, L, C_s) and pair features (B, L, L, C_z).
+
+        All conditioning arrays follow the same concatenated chain order. Time
+        is shared across residues within an example; pair distances are computed
+        from noisy translations, so geometric features change during denoising.
+        """
+
 
         B, L = res_idx.size()[:2]
 
@@ -175,6 +188,8 @@ class Embedder(nn.Module):
                 0,
                 2 * self.r_max,
             )
+            # Reserve a distinct bin for inter-chain pairs, outside the clipped
+            # within-chain residue-offset bins.
             d_residue = torch.where(
                 chain_index, d_residue, torch.zeros_like(d_residue) + 2 * self.r_max + 1
             )
@@ -184,6 +199,8 @@ class Embedder(nn.Module):
             pair_mask = chain_ids[:, :, None] == chain_ids[:, None, :]
 
             # relative residue index embedding
+            # In this branch, inter-chain offsets are set to zero before sinusoidal
+            # embedding; their embedding is therefore not an all-zero vector.
             rel_res_idx_emb = self.res_idx_emb_func(
                 (res_idx[:, :, None] - res_idx[:, None, :]) * pair_mask
             )  # (B, L, L, res_idx_emb_size)
@@ -195,7 +212,7 @@ class Embedder(nn.Module):
         else:
             trans_t = rigids_t.get_trans()  # (B, L, 3)
         padding_2d = padding_mask.unsqueeze(1) & padding_mask.unsqueeze(2)
-        trans_t = trans_t * 0.1  # (B, L, 3) * padding
+        trans_t = trans_t * 0.1  # Convert Angstrom translations to the RBF distance scale.
         edge_len = (
                 torch.norm(
                     trans_t[:, :, None, :] - trans_t[:, None, :, :], dim=-1, keepdim=False

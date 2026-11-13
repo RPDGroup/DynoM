@@ -1,3 +1,10 @@
+"""Denoising objectives and reverse-time ensemble sampling.
+
+The neural network predicts clean residue frames and torsions. Diffusers
+convert the clean-frame prediction into rotation and translation scores
+for score matching during training and stochastic updates during sampling.
+"""
+
 from typing import Dict, Tuple, Any
 import torch
 from torch import nn
@@ -13,27 +20,26 @@ from .utils.all_atom import atom14_to_atom37
 from .utils.clash_checker import get_atom_radius,between_residue_clash_loss
 
 def compute_res_idx(aatype: torch.Tensor, chain_ids: torch.Tensor) -> torch.Tensor:
-    """
-    根据 `chain_ids` 和 `aatype` 批量生成每条链的残基编码。
-    参数:
-    - aatype: [batch_size, sequence_length]，残基种类数组
-    - chain_ids: [batch_size, sequence_length]，残基所属链的指示数组
-    返回:
-    - res_idx: [batch_size, sequence_length]，每条链的残基编号
+    """Return zero-based within-chain indices with shape (B, L).
+
+    Each unique chain ID is numbered independently, including padding IDs;
+    downstream masks determine which residues participate in computation.
     """
     batch_size, sequence_length = aatype.size()
-    res_idx = torch.zeros_like(chain_ids)  # 初始化与 chain_ids 大小相同的张量
+    res_idx = torch.zeros_like(chain_ids)  # Preserve the chain-ID tensor shape and dtype.
     
     for batch_idx in range(batch_size):
-        # 获取当前 batch 的数据
+        # Assign indices independently for each example.
         seq_mask = chain_ids[batch_idx]
-        for chain_id in seq_mask.unique():  # 遍历当前样本的每条链
-            chain_mask = seq_mask == chain_id  # 当前链的掩码
+        for chain_id in seq_mask.unique():  # Include each chain ID present in this example.
+            chain_mask = seq_mask == chain_id  # Residues belonging to this chain.
             res_idx[batch_idx, chain_mask] = torch.arange(chain_mask.sum(), device=aatype.device)
     
     return res_idx
 
 class BaseScoreNetwork(nn.Module):
+    """Combine FoldNet, SE(3) diffusion, and the weighted structural objectives."""
+
     def __init__(
             self,
             model_nn_cfg,
@@ -77,6 +83,13 @@ class BaseScoreNetwork(nn.Module):
             dp_repr=None,
             **kwargs,
     ):
+        """Return the scalar training loss and detached component values for logging.
+
+        Inputs use B x L residue axes and B x L x L pair axes. rigids_t packs a
+        quaternion and an Angstrom translation; gt_feat contains clean structural
+        targets and the analytic scores produced by forward diffusion.
+        """
+
         # self.diffuser._so3_diffuser.use_cached_score = False # see cfg, use_cached_score is turned off
         
         rigids_t = ru.Rigid.from_tensor_7(rigids_t)
@@ -152,6 +165,14 @@ class BaseScoreNetwork(nn.Module):
             gt_feat,
             **kwargs,
     ) -> Tuple[torch.Tensor, Dict[str, Any]]:
+        """Combine masked score, backbone, torsion, FAPE, and steric-clash losses.
+
+        Score normalization compensates for the time-dependent noise scale.
+        Rotation-angle loss is active above its time threshold; backbone
+        coordinate and distance-map losses are active below their thresholds.
+        Returns a differentiable batch-mean loss and scalar logging values.
+        """
+
 
         # rotation score
         gt_rot_score = gt_feat["rot_score"]  # (B, L, 3)
@@ -254,6 +275,8 @@ class BaseScoreNetwork(nn.Module):
             ) * bb_coords_mask.reshape(
                 B, -1, 1
             )  # (B, L*4, L*4)
+            # Restrict distance supervision to observed backbone atom pairs separated
+            # by less than 6 Angstroms in the reference structure.
             bb_dist_map_mask *= gt_bb_dist_map < 6  # (B, L*4, L*4)
             pred_bb_dist_map = torch.cdist(
                 pred_bb_coords.view(B, -1, 3), pred_bb_coords.view(B, -1, 3)
@@ -298,6 +321,8 @@ class BaseScoreNetwork(nn.Module):
                 "atom14_alt_gt_exists": gt_feat["atom14_alt_gt_exists"],
                 "atom14_atom_exists": gt_feat["atom14_atom_exists"],
             }
+            # Resolve equivalent atom names in symmetric side chains before FAPE
+            # (frame-aligned point error), avoiding penalties for naming ambiguity.
             renamed_gt_batch = af2_loss.compute_renamed_ground_truth(
                 batch=gt_batch, atom14_pred_positions=pred_atom14
             )
@@ -367,6 +392,14 @@ class BaseScoreNetwork(nn.Module):
             dp_repr = None,
             **kwargs,
     ) -> Tuple[Dict[str, torch.Tensor],list]:
+        """Generate one structure per batch item from reference-distribution frames.
+
+        Start at t=1, predict clean frames/torsions, and use their scores for
+        reverse SDE steps of size 1/diffusion_steps. Stop once t drops below 0.01.
+        Return atom37 coordinates/masks from the last clean prediction and a
+        list of optional intermediate predictions; these are not raw noisy frames.
+        """
+
         assert not self.model_nn.training
 
         """ Reverse sampling. """
@@ -377,17 +410,19 @@ class BaseScoreNetwork(nn.Module):
         )  # (B,)
         t = torch.Tensor([1.0] * batch_size).to(aatype.device)  # (B,)
 
+        # Initialize one noisy residue-frame configuration per batch item.
         rigids_t = self.diffuser.sample_ref(
             n_samples=batch_size,
             seq_len=seq_len,
             device=aatype.device,
             temperature=self.reverse_sample_cfg['temperature'],
-        )  # (B, L, 7)
+        )  # Rigid object with batch/residue shape (B, L).
 
         step_diffusion = []
         print(f"Diffusing for {self.reverse_sample_cfg['diffusion_steps']} steps...")
 
         for step_t in tqdm(range(self.reverse_sample_cfg['diffusion_steps']), disable=False):
+            # Predict clean frames and torsions conditioned on the current noise level.
             model_out = self.model_nn(
                 aatype=aatype,
                 chain_ids=chain_ids,
@@ -402,6 +437,7 @@ class BaseScoreNetwork(nn.Module):
                 dp_repr = dp_repr,
             )
 
+            # Convert the clean-frame prediction into scores for the reverse SDE.
             pred_rot_score = (
                     self.diffuser.calc_rot_score(
                         rigids_t.get_rots(),
@@ -421,17 +457,19 @@ class BaseScoreNetwork(nn.Module):
                     * rigids_mask[..., None]
             )
 
+            # Advance the noisy frames from t to t-dt using drift and random noise.
             rigids_s = self.diffuser.reverse(
                 rigids_t=rigids_t,  # (B, L)
                 rot_score=pred_rot_score,  # (B, L, 3)
                 trans_score=pred_trans_score,  # (B, L, 3)
                 t=float(t[0]),
                 dt=float(dt[0]),
-            )  # (B, L, 7)
+            )  # Rigid object with shape (B, L).
 
             # update rigids_t and t for the next step
-            rigids_t = rigids_s  # (B, L, 7)
+            rigids_t = rigids_s  # Rigid object with shape (B, L).
             t -= dt  # (B,)
+            # Stop before zero noise, where score expressions become singular.
             if t.min() < 0.01:
                 break
             if self.is_show_diffusing:
@@ -442,6 +480,7 @@ class BaseScoreNetwork(nn.Module):
                     'atom37_mask':step_atom37_mask
                 })
 
+        # Convert the last clean prediction to atom37 for PDB export.
         pred_atom37, atom37_mask = atom14_to_atom37(model_out["pred_atom14"], aatype)
         
         return {"atom37": pred_atom37, 

@@ -1,3 +1,5 @@
+"""Select datasets, sampling policies, and padded loaders for Lightning."""
+
 import torch
 import numpy as np
 import pandas as pd
@@ -9,29 +11,11 @@ from .dataset import RCSBDataset, ComplexMdDataset, AtlasDataset, GenDataset, Mo
 
 
 class FullAtomDataModule(LightningDataModule):
-    """
-    A DataModule implements 6 key methods:
-        def prepare_data(self):
-            # things to do on 1 GPU/TPU (not on every GPU/TPU in DDP)
-            # download data, pre-process, split, save to disk, etc...
-        def setup(self, stage):
-            # things to do on every process in DDP
-            # load data, set variables, etc...
-        def train_dataloader(self):
-            # return train dataloader
-        def val_dataloader(self):
-            # return validation dataloader
-        def test_dataloader(self):
-            # return test dataloader
-        def teardown(self):
-            # called on every process in DDP
-            # clean up after fit or test
+    """Connect configuration dictionaries to training or generation datasets.
 
-    This allows you to share a full dataset without explaining how to download,
-    split, transform and process the data.
-
-    Read the docs:
-        https://lightning.ai/docs/pytorch/latest/data/datamodule.html
+    mode="train" constructs the selected structural/MD training and validation
+    datasets. mode="val" constructs test_gen_dataset for Predict.py. Each
+    dataset supplies its own collate method for residue and pair padding.
     """
 
     def __init__(
@@ -194,6 +178,11 @@ class FullAtomDataModule(LightningDataModule):
         return train_loader
 
     def val_dataloader(self):
+        """Return the loss loader, optionally followed by a generation loader.
+
+        FullAtomLitModule.validation_step distinguishes these by dataloader_idx.
+        """
+
         if self.clustering_training:
             val_sampler = ClusterDistributedSampler(
                 csv_path=self.cfg["csv_path"],
@@ -317,6 +306,14 @@ class ClusterDistributedSampler(DistributedSampler):
 
 
 class ClusterSampler(DistributedSampler):
+    """Assign dataset indices to ranks and repeat each index for a full batch.
+
+    Repeated reads can draw different cluster members and diffusion noise,
+    so repeated indices need not produce identical examples. Each iterator
+    uses a new deterministic shuffle and drops indices that cannot be evenly
+    divided across ranks.
+    """
+
     def __init__(
         self, dataset: torch.utils.data.Dataset, batch_size: int, seed: int = 123
     ):

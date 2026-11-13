@@ -1,3 +1,5 @@
+"""Lightning training hooks, ensemble sampling, and PDB output for DynoM."""
+
 from pathlib import Path
 from typing import Dict, Any
 
@@ -15,17 +17,11 @@ from .score_network import BaseScoreNetwork
 
 
 class FullAtomLitModule(LightningModule):
-    """
-    A LightningModule organizes your PyTorch code into 6 sections:
-        - Initialization (__init__)
-        - Train Loop (training_step)
-        - Validation loop (validation_step)
-        - Test loop (test_step)
-        - Prediction Loop (predict_step)
-        - Optimizers and LR Schedulers (configure_optimizers)
+    """Wrap the score network with optimization, logging, and structure export.
 
-    Docs:
-        https://lightning.ai/docs/pytorch/latest/common/lightning_module.html
+    Training and validation call the supervised score-network forward pass.
+    The test loop runs reverse_sample and writes ensembles beneath test_gen.
+    An optional second validation loader generates structures periodically.
     """
 
     def __init__(
@@ -83,6 +79,13 @@ class FullAtomLitModule(LightningModule):
         return self.score_network(**batch)
 
     def process_batch_step(self,batch, output, output_dir,model_out=None, step=None):
+        """Remove batch padding and write final or intermediate atom37 coordinates.
+
+        Internal chain IDs start at 1; Protein expects zero-based chain indices.
+        Output residues are numbered consecutively across the concatenated chains.
+        B-factors are written as zeros, not predicted confidence values.
+        """
+
         for i in range(batch["aatype"].shape[0]):
             padding_mask = batch["padding_mask"][i]
             aatype = batch["aatype"][i][padding_mask].cpu().numpy()
@@ -115,15 +118,17 @@ class FullAtomLitModule(LightningModule):
                     fp.write(protein.to_pdb(gen_protein))
                     
     def sampling(self, batch, output_dir):
+        """Run reverse diffusion and export final structures plus requested snapshots."""
+
 
         output, step_diffusion = self.score_network.reverse_sample(**batch)
         print(step_diffusion)
-        # diffusing step
+        # Export intermediate clean-structure predictions when snapshots are enabled.
         if len(step_diffusion) != 0:
             for idx,step in enumerate(step_diffusion):
                 self.process_batch_step(batch, step, output_dir, step=step['step_idx'])
 
-        # sample step
+        # Export the final sampled structure for each item in the batch.
         self.process_batch_step(batch, output,output_dir)
 
 
@@ -173,6 +178,8 @@ class FullAtomLitModule(LightningModule):
     ):
         try:    
             # batch = self.move_to_cuda(batch)
+            # The first loader measures supervised denoising loss; any later
+            # loader is reserved for periodic ensemble generation.
             if dataloader_idx == 0:
                 loss, aux_info = self.forward(batch)
                 for loss_name in self.loss_name:
@@ -258,11 +265,10 @@ class FullAtomLitModule(LightningModule):
         return isinstance(self.trainer.val_check_interval, float) and self.trainer.val_check_interval <= 1.0
 
     def configure_optimizers(self):
-        """Choose what optimizers and learning-rate schedulers to use in your optimization.
-        Normally you'd need one. But in the case of GANs or similar you might have multiple.
+        """Build the configured optimizer and optional validation-driven scheduler.
 
-        Examples:
-            https://lightning.ai/docs/pytorch/latest/common/lightning_module.html#configure-optimizers
+        The scheduler monitors val/total_loss at the configured validation cadence;
+        optimizer_step applies a separate linear learning-rate warmup.
         """
         if self.train_cfg['optimizer']['_target_'] == "DeepSpeedCPUAdam":
             optimizer = self.train_cfg['optimizer']['_target_'](
@@ -298,6 +304,8 @@ class FullAtomLitModule(LightningModule):
     def optimizer_step(self, *args, **kwargs):
 
         optimizer = kwargs["optimizer"] if "optimizer" in kwargs else args[2]
+        # Warm up by optimizer steps, so gradient accumulation affects the number
+        # of batches consumed before the configured base learning rate is reached.
         if self.trainer.global_step < self.train_cfg["lr_warmup_steps"]:  # type: ignore
             lr_scale = min(
                 1.0, float(self.trainer.global_step + 1) / self.train_cfg["lr_warmup_steps"]  # type: ignore

@@ -1,3 +1,11 @@
+"""Datasets for structural pretraining, MD fine-tuning, and ensemble generation.
+
+Legacy csv_path arguments refer to pandas pickle files in this release.
+L is the total residue count after concatenating chains in metadata order.
+Training items contain noisy frames plus targets; generation items contain
+sequence-derived masks and conditioning features without reference coordinates.
+"""
+
 import re
 from pandas.core.groupby import DataFrameGroupBy
 from typing import Optional, Literal, Dict, Any
@@ -22,6 +30,13 @@ pdb_parser = PDBParser(QUIET=True)
 
 
 class RCSBDataset(torch.utils.data.Dataset):
+    """Convert structural metadata and PDB coordinates into denoising examples.
+
+    Metadata supplies PDB_ID, seqs, chain_ids, chain_lens, and model. The
+    ordered sequences also form the lookup key for cached AF3 representations.
+    Frames are packed as [quaternion(w, x, y, z), translation(x, y, z)].
+    """
+
     def __init__(
         self,
         csv_path: str,  # path to metadata csv file
@@ -114,6 +129,12 @@ class RCSBDataset(torch.utils.data.Dataset):
         return pdb_fpath
     
     def load_pdb(self,pdb_path, model, chain_id, seqlen):
+        """Read one chain into an (L, 37, 3) atom array in Angstroms.
+
+        Input residues must already be numbered from 1 to seqlen. Missing atoms
+        remain NaN here so that __getitem__ can construct explicit validity masks.
+        """
+
         assert os.path.isfile(pdb_path), f"Cannot find pdb file at {pdb_path}."
         struct = pdb_parser.get_structure("", pdb_path)
         chain = struct[model][chain_id]
@@ -130,6 +151,12 @@ class RCSBDataset(torch.utils.data.Dataset):
         return atom_coords
 
     def sample_forward_diffusion(self,rigids_0, rigids_mask, seed = None):
+        """Sample t in [0.01, 1) and perturb valid backbone frames.
+
+        The optional seed resets Python random for the time draw; it does not
+        seed the NumPy noise generated inside the diffusers.
+        """
+
         if seed is not None:
             random.seed(seed)
         
@@ -160,7 +187,7 @@ class RCSBDataset(torch.utils.data.Dataset):
         pdb_id = fname.split('_')[0]
         seqs = row.seqs
         
-        # read pdb file
+        # Load the reference structure; each chain is read in metadata order.
         pdb_fpath = self._get_pdb_fpath(fname)
 
         atom_coords = []
@@ -170,9 +197,10 @@ class RCSBDataset(torch.utils.data.Dataset):
             except Exception as e:
                 assert 1 == 2 ,f"Error loading {pdb_id} chain {chain_id}: {e}"
 
+        # Keep coordinate, sequence, chain-ID, and AF3-feature residue orders aligned.
         atom_coords = np.concatenate(atom_coords, axis=0)
         
-        # filter seq       
+        # Encode residue types and assign one-based chain IDs before concatenation.       
         aatype = []
         chain_ids = []
         for idx, seq_item in enumerate(seqs):        
@@ -185,7 +213,8 @@ class RCSBDataset(torch.utils.data.Dataset):
         aatype = torch.cat(aatype)  
         chain_ids = torch.cat(chain_ids)  
         
-        # remove center of mass
+        # Subtract the unweighted centroid of observed atoms across all chains.
+        # Center the complex jointly to preserve relative chain placement.
         atom_coords -= np.nanmean(atom_coords, axis=(0, 1), keepdims=True)
         all_atom_positions = torch.from_numpy(atom_coords)  # (seqlen, 37, 3)
         all_atom_mask = torch.all(
@@ -200,14 +229,14 @@ class RCSBDataset(torch.utils.data.Dataset):
         gt_bb_coords = all_atom_positions[:, [0, 1, 2, 4], :]  # (seqlen, 4, 3)
         bb_coords_mask = all_atom_mask[:, [0, 1, 2, 4]]  # (seqlen, 4)
 
-        # alphafold3 data transformation
+        # Package observed atom37 coordinates and masks for geometry transforms.
         alphafold3_feat_dict = {
             "aatype": aatype.long(),
             "all_atom_positions": all_atom_positions.double(),
             "all_atom_mask": all_atom_mask.double(),
         }
         
-        # alphafold3 feature processing
+        # Derive residue frames, compact atom14 targets, and torsion sin/cos pairs.
         alphafold3_feat_dict = data_transforms.atom37_to_frames(alphafold3_feat_dict)
         alphafold3_feat_dict = data_transforms.make_atom14_masks(alphafold3_feat_dict)
         alphafold3_feat_dict = data_transforms.make_atom14_positions(alphafold3_feat_dict)
@@ -216,13 +245,16 @@ class RCSBDataset(torch.utils.data.Dataset):
         )
         
         # ground truth rigids
+        # Rigid group 0 is the backbone frame defined by N, CA, and C.
+        # Residues missing these atoms are excluded from frame-based supervision.
         rigids_0 = ru.Rigid.from_tensor_4x4(
             alphafold3_feat_dict["rigidgroups_gt_frames"]
         )[:, 0]
         rigids_mask = alphafold3_feat_dict["rigidgroups_gt_exists"][:, 0]
         assert rigids_mask.sum() == torch.all(all_atom_mask[:, [0, 1, 2]], dim=-1).sum()
         
-        # Sample forward diffusion
+        # Perturb the clean backbone frames and retain analytic scores as
+        # training targets for the denoising objective.
         seed = None
         if self.is_oder_smaple:
             seed = fname.split("_")[1] if "_" in fname and len(fname.split("_")) > 1 else None
@@ -285,6 +317,7 @@ class RCSBDataset(torch.utils.data.Dataset):
             "bb_coords_mask": bb_coords_mask.float(),  # (seqlen, 4)
         }
 
+        # Attach cached conditioning features using the ordered chain sequences.
         if hasattr(self, "repr_loader"):
             pretrained_repr = self.repr_loader.load(seqres="_".join(seqs))
             data_dict["pretrained_node_repr"] = pretrained_repr.get(
@@ -301,6 +334,13 @@ class RCSBDataset(torch.utils.data.Dataset):
         return data_dict
 
     def collate(self, batch_list):
+        """Pad variable-length items and separate supervised targets into gt_feat.
+
+        padding_mask is True for real residues; rigids_mask additionally requires
+        a valid observed backbone frame. Pair representations need padding on
+        both residue axes, while other residue features pad only the first axis.
+        """
+
         batch = {"gt_feat": {}}
         gt_feat_name = [
             "rot_score",
@@ -375,6 +415,8 @@ class RCSBDataset(torch.utils.data.Dataset):
                     pad[:L, :L, :] = edge
                     batched_val.append(pad[None, :])
                 batched_val = torch.cat(batched_val, dim=0)
+            # Use identity quaternions for padded frames: an all-zero quaternion is
+            # not a valid rotation. Padded translations remain zero.
             if key in ["rigids_0", "rigids_t"]:
                 bsz, seqlen = batched_val.shape[:2]
                 batched_val = batched_val + torch.cat(
@@ -639,9 +681,9 @@ class MonomerAndComplexMdDataset(RCSBDataset):
         return atom_coords    
     
     def _get_pdb_fpath(self, fname):
-        # fname 格式 {PDB_ID}_frame{int(frame)}_rep{int(rep)}_renumbered.pdb
+        # Expected name: {PDB_ID}_frame{frame}_rep{rep}_renumbered.pdb.
         
-        # 正则表达式
+        # Extract the frame and optional replicate identifiers for path lookup.
         pdb_id = fname.split("_")[0]
         frame = re.findall(r'frame(\d+)', fname)[0]
         rep = re.findall(r'rep(\d+)', fname)[0] if re.findall(r'rep(\d+)', fname) else None
@@ -659,7 +701,13 @@ class MonomerAndComplexMdDataset(RCSBDataset):
     
     
 class GenDataset(torch.utils.data.Dataset):
-    """Dataset for conformation generation"""
+    """Repeat each metadata row to generate an ensemble without reference PDBs.
+
+    Required columns are PDB_ID, seqs (ordered chain sequences), and chain_ids.
+    num_samples repeats each row; sample_id numbers outputs within each PDB_ID.
+    The inherited collator places atom14_atom_exists in gt_feat even though
+    this mask is derived from sequence and is not a structural target.
+    """
 
     def __init__(
         self,
@@ -705,7 +753,7 @@ class GenDataset(torch.utils.data.Dataset):
             "chain_name": row.chain_ids,
         }
 
-        # pretrained representations
+        # Load conditioning features for this sequence; generation needs no reference PDB.
         if self.repr_loader is not None:
             pretrained_repr = self.repr_loader.load("_".join(seqs))
             # pretrained_repr = self.repr_loader.load(pdb_id=row.PDB_ID)
@@ -716,7 +764,7 @@ class GenDataset(torch.utils.data.Dataset):
                 "pretrained_edge_repr", None
             )
         
-        # filter seq       
+        # Encode residue types and assign one-based chain IDs before concatenation.       
         aatype = []
         chain_ids = []
         for idx, seq_item in enumerate(seqs):        

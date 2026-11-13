@@ -1,3 +1,9 @@
+"""Pretrain DynoM on structural data using conditional SE(3) denoising.
+
+get_args_Pre_cond builds the data, model, and trainer configurations; the
+data module supplies noisy residue frames and their supervised targets.
+"""
+
 import torch
 
 import lightning as L
@@ -16,18 +22,18 @@ import warnings
 warnings.filterwarnings("ignore", message="The given NumPy array is not writable.*")
 
 
-# 设置随机种子
+# Seed the random number generators before constructing data and model objects.
 L.seed_everything(42)
 
 
 def print_dict_tree(obj, indent: str = "", is_last: bool = True) -> None:
-    """按照树形结构打印配置文件"""
+    """Print nested configuration dictionaries and lists as an indented tree."""
     branch = "└── " if is_last else "├── "
     if isinstance(obj, dict):
         for i, (k, v) in enumerate(obj.items()):
             last = i == len(obj) - 1
             print(f"{indent}{branch}{k}:", end="")
-            # 在冒号后同一行直接打印基础值；若为容器则换行递归
+            # Print scalar values inline and recurse into nested containers.
             if isinstance(v, (dict, list)):
                 print()
                 print_dict_tree(v, indent + ("    " if is_last else "│   "), last)
@@ -43,6 +49,12 @@ def print_dict_tree(obj, indent: str = "", is_last: bool = True) -> None:
 
 
 def train(data_cfg, model_cfg, train_cfg):
+    """Build the conditional denoising model and run Lightning training.
+
+    Pretrain_ckpt_path initializes matching parameter names and shapes only;
+    model_cfg["ckpt_path"] is passed to Trainer.fit for checkpoint resumption.
+    """
+
 
     data_module = FullAtomDataModule(data_cfg=data_cfg)
     model = FullAtomLitModule(model_cfg=model_cfg, train_cfg=train_cfg)
@@ -53,12 +65,12 @@ def train(data_cfg, model_cfg, train_cfg):
     torch.set_float32_matmul_precision(precision="high")
 
     checkpoint_callback = ModelCheckpoint(
-        monitor="loss/val_loss",  # 要监控的指标
-        dirpath=train_cfg['save_ckpt_path'],  # 保存 checkpoint 的目录
-        # checkpoint 文件名格式
+        monitor="loss/val_loss",  # Validation metric used by the checkpoint callback.
+        dirpath=train_cfg['save_ckpt_path'],  # Directory for training checkpoints.
+        # Include the epoch and validation loss in checkpoint filenames.
         filename="best-checkpoint-{epoch:02d}-{loss/val_loss:.4f}",
-        save_top_k=-1,  # 只保存最好的 checkpoint
-        mode="min",  # 根据监控指标的最低值保存
+        save_top_k=-1,  # Keep all checkpoints saved by this callback (-1 disables top-k pruning).
+        mode="min",  # Lower validation loss is better.
     )
 
     if train_cfg["strategy"] == "fsdp":
@@ -78,19 +90,20 @@ def train(data_cfg, model_cfg, train_cfg):
 
 
     if train_cfg.get("Pretrain_ckpt_path"):
-        # 加载预训练权重
+        # Read pretrained weights from the Lightning checkpoint.
         checkpoint = torch.load(train_cfg.get("Pretrain_ckpt_path"))
 
-        # 提取模型的state_dict
+        # Start from the current model parameters, including initialized layers.
         model_dict = model.state_dict()
 
-        # 只加载匹配的层
+        # Only compatible tensors initialize the model; this step does not restore
+        # optimizer or scheduler state.
         pretrained_dict = {k: v for k, v in checkpoint["state_dict"].items() if k in model_dict and model_dict[k].shape == v.shape}
 
-        # 更新模型的state_dict
+        # Replace compatible entries while retaining all unmatched parameters.
         model_dict.update(pretrained_dict)
 
-        # 重新加载模型
+        # Apply the merged parameter dictionary before constructing the trainer.
         model.load_state_dict(model_dict)
 
 
@@ -126,7 +139,7 @@ if __name__ == "__main__":
     
     
     print("当前日期和时间:", datetime.now())
-    # 输出config文件
+    # Print the resolved settings for the run log.
     print_dict_tree(
         {
             "data_cfg": data_cfg,

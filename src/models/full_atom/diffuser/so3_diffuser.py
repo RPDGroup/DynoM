@@ -175,6 +175,13 @@ def score(exp, omega, eps, L=1000, use_torch=False):  # score of density over SO
 
 
 class SO3Diffuser:
+    """Diffuse residue orientations using isotropic Gaussian noise on SO(3).
+
+    Rotation vectors encode the axis times the angle in radians. Cached
+    angle distributions support sampling and score normalization; torch_score
+    can either look up score magnitudes or evaluate the series directly.
+    """
+
 
     def __init__(self, so3_conf):
         self.schedule = so3_conf['schedule']
@@ -346,7 +353,8 @@ class SO3Diffuser:
     ):
         """Computes the score of IGSO(3) density as a rotation vector.
 
-        Same as score function but uses pytorch and performs a look-up.
+        Uses a cached lookup when use_cached_score is True; otherwise evaluates
+        the IGSO(3) series in PyTorch at the discretized noise scale.
 
         Args:
             vec: [..., 3] array of axis-angle rotation vectors.
@@ -410,7 +418,7 @@ class SO3Diffuser:
             score_t: [..., 3] rotation score at time t.
             t: continuous time in [0, 1].
             dt: continuous step size in [0, 1].
-            add_noise: set False to set diffusion coefficent to 0.
+            noise_scale: multiplier for the stochastic noise term (0 disables it).
             mask: True indicates which residues to diffuse.
 
         Returns:
@@ -429,6 +437,8 @@ class SO3Diffuser:
         n_samples = np.cumprod(rot_t.shape[:-1])[-1]
 
         # Right multiply.
+        # Apply the tangent-space increment by composing rotations. Adding
+        # rotation vectors directly would not implement rotation composition.
         rot_t_1 = compose_rotvec(
             rot_t.reshape(n_samples, 3), perturb.reshape(n_samples, 3)
         ).reshape(rot_t.shape)

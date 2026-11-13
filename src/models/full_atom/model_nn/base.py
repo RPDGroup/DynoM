@@ -1,3 +1,5 @@
+"""Assemble the conditional denoiser and reconstruct atoms from predicted geometry."""
+
 import torch
 from torch import nn
 
@@ -11,27 +13,26 @@ from .embedder import Embedder
 from .structure_module import StructureModule
 
 def compute_res_idx(aatype: torch.Tensor, chain_ids: torch.Tensor) -> torch.Tensor:
-    """
-    根据 `chain_ids` 和 `aatype` 批量生成每条链的残基编码。
-    参数:
-    - aatype: [batch_size, sequence_length]，残基种类数组
-    - chain_ids: [batch_size, sequence_length]，残基所属链的指示数组
-    返回:
-    - res_idx: [batch_size, sequence_length]，每条链的残基编号
+    """Return zero-based within-chain indices with shape (B, L).
+
+    Each unique chain ID is numbered independently, including padding IDs;
+    downstream masks determine which residues participate in computation.
     """
     batch_size, sequence_length = aatype.size()
-    res_idx = torch.zeros_like(chain_ids)  # 初始化与 chain_ids 大小相同的张量
+    res_idx = torch.zeros_like(chain_ids)  # Preserve the chain-ID tensor shape and dtype.
     
     for batch_idx in range(batch_size):
-        # 获取当前 batch 的数据
+        # Assign indices independently for each example.
         seq_mask = chain_ids[batch_idx]
-        for chain_id in seq_mask.unique():  # 遍历当前样本的每条链
-            chain_mask = seq_mask == chain_id  # 当前链的掩码
+        for chain_id in seq_mask.unique():  # Include each chain ID present in this example.
+            chain_mask = seq_mask == chain_id  # Residues belonging to this chain.
             res_idx[batch_idx, chain_mask] = torch.arange(chain_mask.sum(), device=aatype.device)
     
     return res_idx
 
 class FoldNet(nn.Module):
+    """Embed noisy frames, refine backbone geometry, and reconstruct atom14 positions."""
+
     def __init__(
         self,
         embedder_cfg,
@@ -80,6 +81,13 @@ class FoldNet(nn.Module):
         pretrained_edge_repr=None,
         **kwargs,
     ):
+        """Predict clean frames, seven torsion sin/cos pairs, and atomic coordinates.
+
+        The embedder combines time, residue positions, noisy distances, and
+        pretrained features. The structure module refines frames, then residue
+        geometry tables place up to 14 atoms per residue in the global frame.
+        """
+
             
         if res_idx is None:
             res_idx=compute_res_idx(aatype=aatype, chain_ids=chain_ids)
@@ -102,6 +110,8 @@ class FoldNet(nn.Module):
             padding_mask=padding_mask,  # (B, L)
         )
         
+        # Attach side-chain rigid groups to the predicted backbone using torsions;
+        # fixed residue geometry then supplies atom positions within those groups.
         all_frames_to_global = self.torsion_angles_to_frames(
             model_out["pred_rigids_0"],
             model_out["pred_torsions"],

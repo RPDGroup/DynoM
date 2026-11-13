@@ -1,3 +1,5 @@
+"""Invariant point attention, sequence mixing, and residue-frame refinement."""
+
 from typing import Optional, Callable, List, Sequence, Tuple
 from src.openfold_local.utils import rigid_utils as ru
 from scipy.stats import truncnorm
@@ -584,6 +586,13 @@ class BackboneUpdate(nn.Module):
 
 
 class StructureModule(nn.Module):
+    """Refine noisy residue frames through repeated attention and geometry updates.
+
+    Each block combines invariant point attention with a sequence transformer,
+    a node transition, and a local frame update. Pair features are updated
+    between blocks; the final node features predict seven torsion angles.
+    """
+
     def __init__(
         self,
         num_ipa_blocks: int,
@@ -662,6 +671,8 @@ class StructureModule(nn.Module):
 
         if not isinstance(rigids_t, ru.Rigid):
             rigids_t = ru.Rigid.from_tensor_7(rigids_t)
+        # Scale translations for internal geometry calculations while leaving
+        # rotations unchanged; predicted frames are unscaled before returning.
         curr_rigids = self.scale_rigids(rigids_t)
 
         # Main trunk 
@@ -677,6 +688,8 @@ class StructureModule(nn.Module):
             seq_tfmr_in = torch.cat(
                 [node_feat, self.trunk[f"skip_embed_{b}"](init_node_feat)], dim=-1
             )
+            # Transformer key-padding masks use True for ignored positions, the
+            # opposite convention to the dataset padding_mask.
             seq_tfmr_out = self.trunk[f"seq_tfmr_{b}"](
                 src=seq_tfmr_in, src_key_padding_mask=~padding_mask
             )
@@ -687,6 +700,8 @@ class StructureModule(nn.Module):
             
             # update rigids
             rigid_update = self.trunk[f"bb_update_{b}"](node_feat)
+            # Compose the predicted local rotation/translation update with the
+            # current frame instead of adding directly to global atom coordinates.
             curr_rigids = curr_rigids.compose_q_update_vec(
                 rigid_update,
                 # node_mask[..., None]
@@ -698,6 +713,7 @@ class StructureModule(nn.Module):
                 edge_feat = edge_feat * edge_mask[..., None]
 
             
+        # Use normalized sin/cos pairs for periodic torsion angles: (B, L, 7, 2).
         _, pred_torsions = self.torsion_pred(s=node_feat, s_initial=init_node_feat)
         pred_rigids_0 = self.unscale_rigids(curr_rigids)
 

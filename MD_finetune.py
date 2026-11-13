@@ -1,3 +1,9 @@
+"""Fine-tune DynoM on MD structures starting from pretrained model weights.
+
+get_args_MD_finetune selects the data and optimization settings. A separate
+model_cfg checkpoint can be passed to Lightning to resume training state.
+"""
+
 import torch 
 import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -14,17 +20,17 @@ from src.utils.get_args import get_args_MD_finetune
 import warnings
 warnings.filterwarnings("ignore", message="The given NumPy array is not writable.*")
 
-# 设置随机种子
+# Seed the random number generators before constructing data and model objects.
 L.seed_everything(42)
 
 def print_dict_tree(obj, indent: str = "", is_last: bool = True) -> None:
-    """按照树形结构打印配置文件"""
+    """Print nested configuration dictionaries and lists as an indented tree."""
     branch = "└── " if is_last else "├── "
     if isinstance(obj, dict):
         for i, (k, v) in enumerate(obj.items()):
             last = i == len(obj) - 1
             print(f"{indent}{branch}{k}:", end="")
-            # 在冒号后同一行直接打印基础值；若为容器则换行递归
+            # Print scalar values inline and recurse into nested containers.
             if isinstance(v, (dict, list)):
                 print()
                 print_dict_tree(v, indent + ("    " if is_last else "│   "), last)
@@ -40,25 +46,31 @@ def print_dict_tree(obj, indent: str = "", is_last: bool = True) -> None:
         
 
 def train(data_cfg,model_cfg,train_cfg):
+    """Load pretrained weights strictly, then fit the configured MD dataset.
+
+    Unlike the partial initialization in Pretrain.py, all state_dict keys and
+    shapes must match here. Trainer.fit can separately resume a checkpoint.
+    """
+
     
     data_module = FullAtomDataModule(data_cfg=data_cfg)
     model = FullAtomLitModule(model_cfg=model_cfg, 
                               train_cfg=train_cfg)
 
-    # 加载预训练模型
-    checkpoint = torch.load(train_cfg.get("Pretrain_ckpt_path"), map_location="cpu")  # 可根据需要设为cuda
-    model.load_state_dict(checkpoint["state_dict"])  # 或 checkpoint['model']，根据你保存时的 key 决定
+    # Initialize model weights from the pretrained Lightning checkpoint.
+    checkpoint = torch.load(train_cfg.get("Pretrain_ckpt_path"), map_location="cpu")  # Load tensors on CPU before Lightning places the model.
+    model.load_state_dict(checkpoint["state_dict"])  # Expect the Lightning state_dict key and strict parameter matching.
 
     logger = TensorBoardLogger(save_dir='./log/', name=train_cfg['log_path'])
     torch.set_float32_matmul_precision(precision="high")
     
     checkpoint_callback = ModelCheckpoint(
-        monitor="loss/val_loss",  # 要监控的指标
-        dirpath=train_cfg['save_ckpt_path'],  # 保存 checkpoint 的目录
-        # checkpoint 文件名格式
+        monitor="loss/val_loss",  # Validation metric used by the checkpoint callback.
+        dirpath=train_cfg['save_ckpt_path'],  # Directory for training checkpoints.
+        # Include the epoch and validation loss in checkpoint filenames.
         filename="best-checkpoint-{epoch:02d}-{loss/val_loss:.4f}",
-        save_top_k=-1,  # 只保存最好的 checkpoint
-        mode="min",  # 根据监控指标的最低值保存
+        save_top_k=-1,  # Keep all checkpoints saved by this callback (-1 disables top-k pruning).
+        mode="min",  # Lower validation loss is better.
     )
 
     if train_cfg['strategy'] == "fsdp":

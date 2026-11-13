@@ -6,8 +6,11 @@ from lightning.pytorch.strategies import DDPStrategy
 
 def get_args():
     """
-    Parses command-line arguments for the Unconditional Protein Diffusion Model Pre-training.
-    Returns a dictionary containing data_cfg, model_cfg, and train_cfg.
+    Parse shared training options into an argparse.Namespace.
+
+    The configuration builders below map these flat options into data_cfg,
+    model_cfg, and train_cfg. Legacy CSV path options refer to metadata
+    loaded with pandas.read_pickle by the datasets in this release.
     """
     parser = argparse.ArgumentParser(description="Configuration for Unconditional Protein Diffusion Model Pre-training")
 
@@ -492,6 +495,11 @@ def get_args_Pre_uncond():
 
 
 def get_args_Pre_cond():
+    """Build data, model, and trainer settings for conditional pretraining.
+
+    These dictionaries configure dataset loading, the denoising network,
+    and Lightning optimization respectively.
+    """
 
     args = get_args()
 
@@ -723,6 +731,11 @@ def get_args_Pre_cond():
 
 
 def get_args_MD_finetune():
+    """Build the three configuration dictionaries consumed by MD_finetune.py.
+
+    Pretrain_ckpt_path supplies the initial weights; model_ckpt_path maps
+    to the checkpoint used by Lightning when resuming training.
+    """
     
     args = get_args()
 

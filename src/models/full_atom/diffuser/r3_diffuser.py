@@ -32,7 +32,12 @@ import torch
 
 
 class R3Diffuser:
-    """VP-SDE diffuser class for translations."""
+    """Variance-preserving SDE for residue-frame translations.
+
+    coordinate_scaling maps Angstrom coordinates to internal diffusion units.
+    forward_marginal and reverse return Angstrom coordinates, while scores
+    are derivatives with respect to the internally scaled coordinates.
+    """
 
     def __init__(self, r3_conf):
         """
@@ -122,6 +127,8 @@ class R3Diffuser:
         if not np.isscalar(t):
             raise ValueError(f"{t} must be a scalar.")
         x_0 = self._scale(x_0)
+        # Sample x_t = exp(-integrated_beta/2) * x_0 + sqrt(variance) * noise
+        # in scaled coordinates, then convert the sampled positions back to Angstroms.
         x_t = np.random.normal(
             loc=np.exp(-1 / 2 * self.marginal_b_t(t)) * x_0,
             scale=np.sqrt(1 - np.exp(-self.marginal_b_t(t))),
@@ -148,13 +155,13 @@ class R3Diffuser:
 
         Args:
             x_t: [..., 3] current positions at time t in angstroms.
-            score_t: [..., 3] rotation score at time t.
+            score_t: [..., 3] translation score in internal coordinate units.
             t: continuous time in [0, 1].
             dt: continuous step size in [0, 1].
             mask: True indicates which residues to diffuse.
 
         Returns:
-            [..., 3] positions at next step t-1.
+            [..., 3] Angstrom positions at time t-dt.
         """
         if not np.isscalar(t):
             raise ValueError(f"{t} must be a scalar.")
