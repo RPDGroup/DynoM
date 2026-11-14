@@ -1,5 +1,13 @@
 # RCSB PDB Dataset Training Pipeline
-Please make sure to run it in the root directory of the project:DynoM/
+
+This document covers training data preparation. For inference inputs, use the
+single-command `Process_data.py` workflow described in
+[README_Inference.md](README_Inference.md). The unified inference entry point
+does not download or process training structures.
+
+Run the commands below from the repository root (`DynoM/`). See the
+[project README](../README.md) for installation and the main code entry points.
+
 ## Step 1: Retrieve PDB IDs from RCSB Search
 
 This step allows users to fetch PDB IDs from the RCSB database according to a specified search query and automatically download the corresponding FASTA sequences.
@@ -84,9 +92,11 @@ In this step, we generate protein sequence representations using the Protenix fr
 ### Overview
 To compute protein representations, a dedicated environment with all required **Protenix dependencies** must be set up. This project provides **a customized version of Protenix** tailored for our workflow. 
 
-**model_v0.2.0.pt**: The model weights are **included** in this repository.
+**model_v0.2.0.pt**: Configure the Protenix encoder checkpoint as described in
+the shared [environment and checkpoint setup](README_Inference.md#one-time-setup).
+The default checkpoint location is:
 ```text
-/protenix
+data_processed/protenix
  └── release_data
      └── checkpoint/
          └── model_v0.2.0.pt
@@ -119,7 +129,7 @@ This step constructs structured JSON files by pairing precomputed MSA results wi
 
 ```bash
 python3 -m data_processed.rcsb_script.step5_representation_generation.step3_af3_input_json \
-    --input_pkl_file <PATH_TO_YOUR_FINAL_MERGED_PKL_FILE_FROM_STEP1> \
+    --input_file <PATH_TO_YOUR_FINAL_MERGED_PKL_FILE_FROM_STEP4-1> \
     --msa_results_dir <PATH_TO_YOUR_PRECOMPUTED_MSA_DIRECTORY> \
     --one_json_output_dir <PATH_TO_YOUR_ONE_JSON_OUTPUT_DIRECTORY> \
     --merge_json_output_dir <PATH_TO_YOUR_MERGE_JSON_OUTPUT_DIRECTORY> \
@@ -133,8 +143,10 @@ python3 -m data_processed.rcsb_script.step5_representation_generation.step3_af3_
 ```bash
 #  Create and activate environment
 conda create -n protenix_env python=3.10 -y
+conda activate protenix_env
 cd ./data_processed/protenix
 pip3 install -e .
+cd ../..
 ```
 **Note**: This project includes a modified version of Protenix. Make sure to use this directory for execution.
 <br/>

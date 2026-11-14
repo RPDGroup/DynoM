@@ -1,194 +1,227 @@
-# Inference Data Pipeline
+# Inference data preparation
 
-This data pipeline is designed to generate the `.pkl` format sequence files and corresponding representations required as inputs for the DynoM model. 
+See the [project README](../README.md) for DynoM installation and sampling.
+All commands below assume the repository root as the working directory unless
+an absolute script path is used.
 
-> Note: Please run the execution command from the project's root directory (`DynoM/`)
+Run `Process_data.py` once to prepare all three inputs required by `Predict.py`:
 
-## Step 1: FASTA → PKL Processing
-
-This step is designed to convert protein FASTA files into the structured `.pkl` format, supporting various parsing modes and optional PDB ID filtering. 
-
-**Usage Example:**
-
-```bash
-python3 -m data_processed.rcsb_script.step2_fasta_file_processed \
-    --input_fasta_dir <PATH_TO_YOUR_INPUT_FASTA_DIRECTORY> \
-    --one_pdb_output_pkl_dir <PATH_TO_YOUR_ONE_PDB_OUTPUT_PKL_DIRECTORY> \
-    --final_pkl_file <PATH_TO_YOUR_FINAL_MERGED_PKL_FILE> \
-    --mode single \
-
-```
-### Input Requirements
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `--input_fasta_dir` | `Input` | The path to your input sequences (formatted to the **RCSB PDB standard**). This can be either a folder containing **individual FASTA files (one per structure)** or the path to a single **multi-FASTA file**. |
-| `--one_pdb_output_pkl_dir` | `Intermediate Output` | The directory where the parsed `.pkl` files for each individual PDB/structure will be saved during processing. |
-| `--final_pkl_file` | `Final Output` | The absolute path and filename for the final, aggregated `.pkl` file (e.g., `/path/to/output/merged_features.pkl`). |
-| `--mode` | `Config` | **Parsing Mode:** Set to `single` when parsing a directory of individual FASTA files. *(Note: If your pipeline uses a different mode like `multi` for a multi-FASTA file, you can specify it here).* |
-
-<br/>
-
-## Step 2: Representation Generation
-In this step, we generate protein sequence representations using the Protenix framework.
-
-### Overview
-To compute protein representations, a dedicated environment with all required dependencies must be set up. **This project integrates Protenix into a tailored pipeline for our specific needs.** *(Base reference: [Protenix v0.3.1 Release](https://github.com/bytedance/Protenix/releases/tag/v0.3.1))*
-
-Before proceeding, please note the following built-in assets:
-* **Model Weights (`model_v0.2.0.pt`):** Please download the required model weights from [this Google Drive link](https://drive.google.com/file/d/1HIm9jdhZpOO5dn6LfVpuISe0RpYl1Od0/view?usp=drive_link). Once downloaded, place the file into the `protenix/release_data/checkpoint/` directory.
-* **CCD Cache (`components.v20240608.cif`)**: This required cache file will be **automatically downloaded** during the first execution. 
-  > ⚠️ *Note: Please be patient, as the download may take some time depending on your network speed.*
-
----
-
-### Step 2-1: MSA Generation
-
-This step generates **Multiple Sequence Alignment (MSA)** data using the `.pkl` files produced in Step 1.
-
-**Usage Example:**
-
-```bash
-python3 -m data_processed.rcsb_script.step5_representation_generation.step2_get_msa_from_protenixAPI \
-    --input_file <PATH_TO_YOUR_FINAL_MERGED_PKL_FILE_FROM_STEP1> \
-    --msa_out_dir <PATH_TO_YOUR_MSA_OUTPUT_DIRECTORY> \
-    --log_file <PATH_TO_YOUR_MSA_LOG_FILE> \
-    --max_workers <NUMBER_OF_PARALLEL_WORKERS>
+```text
+RCSB FASTA -> dataset.pkl -> MSA search -> Protenix input JSON
+                                      -> single/pair representations
+                                      -> seqres_to_index.pkl
 ```
 
-#### Parameters
+The script handles intermediate paths, environment selection, logs, and final
+feature checks. You do not need to edit `inference_demo_1.sh` or manually switch
+environments between processing steps.
 
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `--input_file` | `Input` | The path to your final aggregated `.pkl` file generated from Step 1. |
-| `--msa_out_dir` | `Output` | The directory where the generated MSA results will be saved. |
-| `--log_file` | `Logging` | The path to save the MSA generation log file. |
-| `--max_workers` | `Config` | Number of parallel workers for MSA generation (e.g., `4`). |
-<br/>
+## Contents
 
-### Step 2-2: JSON Construction for Representation Input
+- [One-time setup](#one-time-setup)
+- [Prepare inputs with one command](#prepare-inputs-with-one-command)
+- [Environment and compute options](#environment-and-compute-options)
+- [Outputs and prediction](#outputs-and-prediction)
+- [Reuse existing results](#reuse-existing-results)
+- [Troubleshooting](#troubleshooting)
+- [CPU tests](#cpu-tests)
 
-This step constructs structured JSON files by pairing the precomputed MSA results with their corresponding protein sequences.
+## One-time setup
 
-**Usage Example:**
+Follow the [Installation tutorial](../README.md#installation) to create
+`DynoM_env` and [the Protenix environment](../README.md#protenix-environment).
+Then activate `DynoM_env` before running the commands below.
 
-```bash
-python3 -m data_processed.rcsb_script.step5_representation_generation.step3_af3_input_json \
-    --input_file <PATH_TO_YOUR_FINAL_MERGED_PKL_FILE_FROM_STEP1> \
-    --msa_results_dir <PATH_TO_YOUR_PRECOMPUTED_MSA_DIRECTORY> \
-    --one_json_output_dir <PATH_TO_YOUR_ONE_JSON_OUTPUT_DIRECTORY> \
-    --merge_json_output_dir <PATH_TO_YOUR_MERGE_JSON_OUTPUT_DIRECTORY> \
-    --merge_json_output_name <MERGED_JSON_FILE_NAME_No_SUFFIX> \
-    --pairing_db 'uniref100'
-```
+`Process_data.py` calls `protenix_env` automatically. MSA search and first-use
+model/cache downloads require network access; representation generation uses
+the Protenix encoder checkpoint `model_v0.2.0.pt`.
 
-#### Parameters
+## Prepare inputs with one command
 
-| Argument | Type | Description |
-| :--- | :--- | :--- |
-| `--input_file` | `Input` | **(Required)** Path to the final merged PKL file generated from Step 1. This file contains the structural or sequence feature information necessary to build the input. |
-| `--msa_results_dir` | `Input` | **(Required)** Path to the directory containing the precomputed Multiple Sequence Alignment (MSA) results. |
-| `--one_json_output_dir` | `Output` | **(Required)** Directory path to save the individual AlphaFold 3 input JSON files generated for each target. |
-| `--merge_json_output_dir` | `Output` | **(Required)** Directory path to save the consolidated, large JSON file (typically used for batch processing or unified management). |
-| `--merge_json_output_name` | `Output` | **(Required)** The base name for the merged JSON file. **Note:** Do not include the `.json` suffix. |
-| `--pairing_db` | `Config` | The database used for MSA sequence pairing. The default/recommended value is `'uniref100'`. |
-<br/>
-
-### Step 2-3: Environment Setup
+From the DynoM repository, with `DynoM_env` activated:
 
 ```bash
-# 1. Create and activate a new Conda environment
-conda create -n protenix_env python=3.10 -y
-conda activate protenix_env
-
-# 2. Navigate to the Protenix directory and install dependencies
-cd ./data_processed/protenix
-pip3 install -e .
-# 3. Install additional dependencies
-pip install dm-tree
-
+python Process_data.py \
+    --input-fasta /path/to/input.fasta \
+    --output-dir /path/to/prepared_data
 ```
 
+`--input-fasta` accepts either a FASTA file (including multiple targets) or a
+directory of `.fasta`, `.fa`, and `.faa` files. `--output-dir` must be new or empty.
+The script can also be invoked by its absolute path from another directory.
 
-> **Important Notes:**
-> * **Modified Version:** This project uses a customized version of Protenix. Please ensure all commands are executed within the `./data_processed/protenix` directory.
-> * **Terminal Execution:** Protenix does not include a Jupyter kernel. **All operations must be performed directly in the terminal.**
-> * **Performance:** When processing large-scale datasets, **MSA (Multiple Sequence Alignment)** generation may be slow. Please be patient during this process.
+Input headers use the RCSB format, for example:
 
-</br>
+```fasta
+>9R71_1|Chains A, B|Adenylate kinase
+MRIILLGAPGAGKGTQAQFIMEKYGIPQISTGDMLRAAVKSGSELGKQAKD
+```
 
-### Step 2-4: Representation Generation
+This record describes two identical chains. A `Chain X [auth A]` annotation uses
+the author chain identifier `A`. Each target/entity should appear once. Sequences
+must contain standard protein residue letters or `X`; gaps and stop symbols are
+not accepted.
 
-This step generates **protein representations** using a customized **Protenix inference pipeline**.
- 
+- `--mode complex` (default) keeps all chains of a target together and preserves
+  their order. Identical-chain copies are expanded in the metadata.
+- `--mode single` makes an independent target for every chain, named
+  `<PDB_ID>_0_<chain>`. This changes the names of the corresponding MSA folders
+  and feature files.
 
-**1. Prepare Environment and Workspace**
+The included ADK example can be prepared with:
 
-Ensure you are still operating within the **`protenix_env`** Conda environment and located in the `./data_processed/protenix` directory.
-
-**2. Configure the Inference Script**
-
-Open `inference_demo_1.sh` in your text editor and update the following variables (leave all other parameters unchanged):
-* **Input File (`input_json_path`):** Set this to the path of the JSON file generated in Step 2-2.
-* **Output Directory (`dump_dir`):** Define the destination path where the generated representations will be saved.
-* **GPU Allocation (`nproc_per_node`):** Update `nproc_per_node=X`, replacing `X` with the number of GPUs you intend to use.
-
-**3. Execute the Pipeline**
-
-Run the modified script:
 ```bash
-bash inference_demo_1.sh
+python Process_data.py \
+    --input-fasta example/Test_Task/ADK/01_Data_Process/Step1_Convert_Fasta_Into_Pkl/Input/9R71.fasta \
+    --output-dir ./prepared_9R71
 ```
-> **💡 Troubleshooting Note:**
-> If you encounter the error `AttributeError: module 'torch.library' has no attribute 'custom_op'`, it indicates a version incompatibility between DeepSpeed and PyTorch. To fix this, ensure you are in the **`protenix_env`** and update **DeepSpeed** to version **0.15.1**:
-> ```bash
-> pip uninstall deepspeed -y
-> pip install deepspeed==0.15.1
-> ```
->
 
-**4. Return to Root Directory**
+## Environment and compute options
 
-Once the inference is complete, navigate back to the project root directory:
 ```bash
-cd ../../
+python Process_data.py \
+    --input-fasta ./fasta \
+    --output-dir ./prepared_data \
+    --protenix-env protenix_env \
+    --msa-workers 4 \
+    --gpus 1
 ```
 
-## Step 3: Representation Retrieval by Sequence
+The wrapper uses `conda run` to invoke Protenix while keeping the main environment
+active. Alternatively, pass `--protenix-python /path/to/protenix_env/bin/python`
+instead of `--protenix-env`. Set `CUDA_VISIBLE_DEVICES` before running the command
+to select GPUs. `--gpus` is the number of local worker processes.
 
-This step retrieves **precomputed protein representations** based on their sequences, enabling the efficient mapping and reuse of generated features.
+Use `--dry-run` to print the plan and external commands without writing files or
+running MSA/model computation. `python Process_data.py --help` lists all options.
 
-**1. Prepare Environment**
+| Argument | Default | Description |
+| --- | --- | --- |
+| `--input-fasta` | Required | RCSB-style FASTA file or directory |
+| `--output-dir` | Required | New or empty run directory |
+| `--mode` | `complex` | `complex` or `single` |
+| `--protenix-env` | `protenix_env` | Conda environment used for MSA and encoding |
+| `--protenix-python` | Unset | Python executable to use instead of `--protenix-env` |
+| `--gpus` | `1` | Positive number of local Protenix worker processes |
+| `--msa-workers` | `4` | Positive number of parallel MSA requests |
+| `--msa-dir` | Unset | Existing MSA results; skips MSA search |
+| `--repr-dir` | Unset | Existing representations; skips both MSA and encoding |
+| `--protenix-checkpoint` | Runner default | Optional encoder checkpoint file |
+| `--dry-run` | Disabled | Print the plan only |
 
-Switch back to your main **`DynoM_env`** environment and ensure you are in the root directory: `/DynoM`:
+`--protenix-env` and `--protenix-python` are mutually exclusive. When
+`--repr-dir` is supplied, the MSA options are not used. Argument paths are
+resolved relative to the directory from which the script is invoked.
+
+## Outputs and prediction
+
+| Output | Purpose / `Predict.py` argument |
+| --- | --- |
+| `dataset.pkl` | `--gen_dataset_test_gen_dataset` |
+| `seqres_to_index.pkl` | `--alphafold3_cfg_seqres_to_index_path` |
+| `AF3_repr/` | `--alphafold3_cfg_repr_data_root` |
+| `msa/` | MSA results indexed by target and unique sequence |
+| `protenix_input.json` | Encoder inputs with absolute MSA paths |
+| `logs/` | MSA and representation-generation logs |
+| `data_paths.json` | Final input paths, written after validation succeeds |
+| `predict.sh` | Ready-to-run DynoM prediction command |
+
+The default generated layout is:
+
+```text
+prepared_data/
+├── dataset.pkl
+├── msa/
+├── protenix_input.json
+├── AF3_repr/
+│   ├── <target>_single_repr_recycle10.npy
+│   └── <target>_pair_repr_recycle10.npy
+├── seqres_to_index.pkl
+├── logs/
+│   ├── msa.log
+│   ├── msa_search.log
+│   └── representations.log
+├── data_paths.json
+└── predict.sh
+```
+
+Reusing an external MSA or representation directory omits the corresponding
+generation steps and local outputs. With `--repr-dir`, no MSA or encoder-input
+JSON is generated; `data_paths.json` points to the supplied feature directory.
+
+Features use 10 recycling iterations, matching the current `Predict.py`
+configuration. For a target with `L` residues, the wrapper checks for floating-point
+arrays of shapes `(L, 384)` and `(L, L, 128)`. Missing targets or mismatched shapes
+stop processing. Sequence lookup keys follow the same chain order as the metadata.
+Targets with identical ordered sequences share one lookup entry.
+
+After preparation succeeds, run:
+
 ```bash
-conda deactivate
-conda activate DynoM_env
+bash /path/to/prepared_data/predict.sh
 ```
 
-**2. Execute the Retrieval Script**
+The generated command uses the Python executable that launched `Process_data.py`,
+the repository's `checkpoint/DynoM.ckpt`, batch size 10, and 1,000 samples per
+target. Edit these prediction options in `predict.sh` if needed. Data preparation
+does not start DynoM sampling automatically.
 
-Run the following command to map sequences to their representations:
+## Reuse existing results
+
+Reuse compatible MSA results to skip network search:
+
 ```bash
-python3 -m data_processed.rcsb_script.step6_af3rep_corresponding_seqs \
-    --input_pkl <PATH_TO_YOUR_FINAL_MERGED_PKL_FILE_FROM_STEP1> \
-    --output_pkl <PATH_TO_YOUR_SEQUENCE_MAPPING_OUTPUT_PKL>
+python Process_data.py \
+    --input-fasta ./input.fasta \
+    --output-dir ./prepared_with_existing_msa \
+    --msa-dir /path/to/existing/msa
 ```
 
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
-| `--input_pkl` | `Input` | The path to the final merged `.pkl` file generated in Step 1. |
-| `--output_pkl` | `Output` | The destination path for the sequence mapping results. The generated `.pkl` file contains the mapping between sequences and their corresponding representations. |
-<br/>
+Each target must have `<target>/<index>/pairing.a3m` and `non_pairing.a3m` files.
+The first sequence in both files must match the intended query. The wrapper
+matches directories by query sequence rather than assuming their numeric order.
 
+To reuse representations and skip both MSA and encoder execution:
 
-## Final Data Overview
+```bash
+python Process_data.py \
+    --input-fasta ./input.fasta \
+    --output-dir ./prepared_with_existing_features \
+    --repr-dir /path/to/existing/AF3_repr
+```
 
-All data required for **model inference** has now been fully prepared. The following table maps the generated components to their respective steps and the final model input arguments:
+Use representations generated for the **same sequences, target names, chain
+order, and chain multiplicity**. Shape checks alone cannot establish sequence
+identity. External representations are referenced in place, without copying.
 
-| Data Component | Source Step | Description | Model Argument Mapping |
-| :--- | :--- | :--- | :--- |
-| **PKL Files** | **Step 1** | Contains protein sequences, chain information, and metadata for data indexing. | `gen_dataset_test_gen_dataset` |
-| **AF3 Representations** | **Step 2-4** | Includes single and pair representations (residue-level features) saved in the `dump_dir`. | `alphafold3_cfg_repr_data_root` |
-| **Sequence Mapping** | **Step 3** | The final `.pkl` file establishing the map between sequences and precomputed representations. | `alphafold3_cfg_seqres_to_index_path` |
+On failure, inspect the reported log. Retry with a new output directory, optionally
+reusing completed MSA results with `--msa-dir`. Existing output directories are
+not automatically resumed or overwritten. Completion files are created only when
+all expected representation files pass validation.
 
-<br/>
+## Troubleshooting
+
+| Message or symptom | Action |
+| --- | --- |
+| Output directory is not empty | Choose a new output directory; use `--msa-dir` or `--repr-dir` to reuse results |
+| RCSB header or duplicate-chain error | Use one record per entity with explicit chain IDs; do not repeat the same chain within a target |
+| Conda environment or executable not found | Complete the Protenix setup or specify its Python with `--protenix-python` |
+| MSA step fails or a query has no matching MSA | Inspect `logs/msa_search.log` and `logs/msa.log`; confirm both A3M files contain the expected query |
+| Protenix generation fails | Inspect `logs/representations.log` and any per-target reports under `AF3_repr/ERR/` |
+| Representation file is missing or has the wrong shape | Confirm target names, chain multiplicity, residue order, and cycle-10 filenames |
+
+The individual scripts in `rcsb_script/` remain available for manual workflows.
+The unified entry point only prepares inference data; the training pipeline is
+documented separately in [README_Train.md](README_Train.md).
+
+## CPU tests
+
+With pytest installed in an environment containing NumPy, pandas, and Biopython:
+
+```bash
+python -m pytest -q tests/test_process_data.py
+```
+
+These tests exercise parsing, chain ordering, MSA matching, feature validation,
+environment routing, and failure handling. They do not run the remote MSA service
+or the GPU encoder.
