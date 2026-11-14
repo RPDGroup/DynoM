@@ -188,9 +188,7 @@ If you are using our code or model, please cite the following paper:
 @article{DynoM,
   title={"Efficient exploration of conformational ensembles via protein interaction-informed deep learning"},
   author={Zilin Ren, Duo Liu, Qianyi Jia, Qiantong Jin, Yubin Liu, Chan Liu, Zhixiang Sui, Luyao Han, Yixiang Zhang, Xin Yang, Pingping Sun, Zhiguo Fu, Chengkun Wu, Ming Ni, Xiaochen Bo},
-  journal={xx},
   year={2026},
-  publisher={xx},
-  doi={xx},
+  doi={https://doi.org/10.21203/rs.3.rs-9549778/v1},
 }
 ```
